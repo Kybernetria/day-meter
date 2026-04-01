@@ -14,10 +14,10 @@
         android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:paddingStart="10dp"
-        android:paddingTop="4dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="4dp">
+        android:paddingStart="12dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="6dp">
 
         <ImageView
             android:id="@+id/progress_bar_image"
@@ -35,14 +35,14 @@
             android:background="@drawable/widget_percentage_badge"
             android:gravity="center"
             android:includeFontPadding="false"
-            android:paddingStart="7dp"
-            android:paddingTop="3dp"
-            android:paddingEnd="7dp"
-            android:paddingBottom="3dp"
+            android:paddingStart="6dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="2dp"
             android:singleLine="true"
             android:text="@string/placeholder_progress"
             android:textColor="#FFFFFF"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:textStyle="bold"
             android:contentDescription="@string/accessibility_progress_text" />
     </FrameLayout>

@@ -213,9 +213,9 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
                     else -> 23f
                 }
                 else -> when (barSize) {
-                    0 -> 11f
-                    2 -> 16f
-                    else -> 14f
+                    0 -> 10f
+                    2 -> 14f
+                    else -> 12f
                 }
             }
         }
