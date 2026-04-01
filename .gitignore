@@ -1,0 +1,32 @@
+# Gradle / Android
+.gradle/
+build/
+app/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+.directory
+
+# Kotlin / Java
+out/
+*.class
+
+# OS / temp
+.DS_Store
+Thumbs.db
+*.log
+
+# Signing / secrets
+*.jks
+*.keystore
+*.pem
+*.p12
+*.key
+
+# Generated reports
+app/build/reports/

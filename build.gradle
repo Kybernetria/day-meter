@@ -1,0 +1,17 @@
+buildscript {
+    ext.kotlin_version = '2.1.10'
+    ext.ksp_version = '2.1.10-1.0.31'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.9.1'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:$ksp_version"
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

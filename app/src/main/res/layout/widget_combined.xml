@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_background_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="@string/widget_background_desc" />
+
+    <FrameLayout
+        android:id="@+id/widget_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingStart="1dp"
+        android:paddingTop="1dp"
+        android:paddingEnd="1dp"
+        android:paddingBottom="1dp">
+
+        <ImageView
+            android:id="@+id/progress_bar_image"
+            android:layout_width="match_parent"
+            android:layout_height="12dp"
+            android:layout_gravity="center"
+            android:layout_marginStart="1dp"
+            android:layout_marginTop="1dp"
+            android:layout_marginEnd="1dp"
+            android:layout_marginBottom="1dp"
+            android:scaleType="fitXY"
+            android:contentDescription="@string/accessibility_progress_bar" />
+
+        <TextView
+            android:id="@+id/progress_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/widget_percentage_badge"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:paddingStart="7dp"
+            android:paddingTop="5dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="3dp"
+            android:singleLine="true"
+            android:text="@string/placeholder_progress"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:contentDescription="@string/accessibility_progress_text" />
+    </FrameLayout>
+</FrameLayout>
