@@ -3,6 +3,7 @@ package com.example.dayprogress.ui
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -200,13 +201,19 @@ class SettingsActivity : AppCompatActivity() {
             0xFFFFFFFF.toInt()
         }
 
-        binding.activityRoot.background = GradientDrawable(
-            GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(
-                ColorUtils.setAlphaComponent(startColor, 28),
-                ColorUtils.setAlphaComponent(endColor, 18)
-            )
-        )
+        val surfaceColor = getBaseSurfaceColor()
+        val onSurfaceColor = if (ColorUtils.calculateLuminance(surfaceColor) > 0.5) {
+            Color.BLACK
+        } else {
+            Color.WHITE
+        }
+        val cardStrokeColor = if (surfaceColor == Color.TRANSPARENT) {
+            ColorUtils.setAlphaComponent(midColor, 90)
+        } else {
+            ColorUtils.setAlphaComponent(onSurfaceColor, 28)
+        }
+
+        binding.activityRoot.setBackgroundColor(surfaceColor)
 
         binding.toolbar.background = GradientDrawable(
             GradientDrawable.Orientation.LEFT_RIGHT,
@@ -215,37 +222,33 @@ class SettingsActivity : AppCompatActivity() {
         binding.toolbar.setTitleTextColor(onPrimaryColor)
 
         findViewById<MaterialCardView>(R.id.preview_card)?.apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(
-                    ColorUtils.setAlphaComponent(startColor, 52),
-                    ColorUtils.setAlphaComponent(endColor, 40)
-                )
-            ).apply {
-                cornerRadius = 20f * resources.displayMetrics.density
-            }
-            strokeColor = ColorUtils.setAlphaComponent(midColor, 140)
+            setCardBackgroundColor(surfaceColor)
+            strokeColor = cardStrokeColor
         }
 
         findViewById<MaterialCardView>(R.id.settings_card)?.apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(
-                    ColorUtils.setAlphaComponent(startColor, 40),
-                    ColorUtils.setAlphaComponent(endColor, 30)
-                )
-            ).apply {
-                cornerRadius = 20f * resources.displayMetrics.density
-            }
-            strokeColor = ColorUtils.setAlphaComponent(midColor, 120)
+            setCardBackgroundColor(surfaceColor)
+            strokeColor = cardStrokeColor
         }
 
-        findViewById<TextView>(R.id.preview_title)?.setTextColor(onPrimaryColor)
-        findViewById<TextView>(R.id.preview_subtitle)?.setTextColor(ColorUtils.setAlphaComponent(onPrimaryColor, 220))
+        findViewById<TextView>(R.id.preview_title)?.setTextColor(onSurfaceColor)
+        findViewById<TextView>(R.id.preview_subtitle)?.setTextColor(ColorUtils.setAlphaComponent(onSurfaceColor, 220))
 
         window.statusBarColor = ColorUtils.blendARGB(midColor, 0xFF000000.toInt(), 0.2f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             window.navigationBarColor = ColorUtils.blendARGB(midColor, 0xFF000000.toInt(), 0.1f)
+        }
+    }
+
+    private fun getBaseSurfaceColor(): Int {
+        return when (prefs.theme) {
+            1 -> Color.WHITE
+            2 -> Color.BLACK
+            3 -> Color.TRANSPARENT
+            else -> {
+                val nightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                if (nightMode == Configuration.UI_MODE_NIGHT_YES) Color.BLACK else Color.WHITE
+            }
         }
     }
 
