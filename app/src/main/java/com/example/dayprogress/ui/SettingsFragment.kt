@@ -235,14 +235,26 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun setupColorPreference(key: String, title: String, setter: (Int) -> Unit) {
         findPreference<Preference>(key)?.setOnPreferenceClickListener {
-            ColorPickerDialog.Builder(requireContext())
+            val currentColor = when (key) {
+                AppPreferences.KEY_PROGRESS_COLOR -> prefs.progressColor
+                AppPreferences.KEY_PROGRESS_GRADIENT_END_COLOR -> prefs.progressGradientEndColor
+                AppPreferences.KEY_PROGRESS_UNFILLED_COLOR -> prefs.progressUnfilledColor
+                AppPreferences.KEY_BACKGROUND_COLOR -> prefs.backgroundColor
+                AppPreferences.KEY_TEXT_COLOR -> prefs.textColor
+                AppPreferences.KEY_BORDER_COLOR -> prefs.borderColor
+                else -> 0xFFFFFFFF.toInt()
+            }
+
+            val builder = ColorPickerDialog.Builder(requireContext())
                 .setTitle(title)
                 .setPositiveButton(getString(R.string.select_button), ColorEnvelopeListener { envelope, _ ->
                     setter(envelope.color)
                     updateEverything()
                 })
                 .setNegativeButton(getString(R.string.cancel_button)) { dialogInterface, _ -> dialogInterface.dismiss() }
-                .show()
+
+            builder.getColorPickerView().setInitialColor(currentColor)
+            builder.show()
             true
         }
     }

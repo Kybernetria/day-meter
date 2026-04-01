@@ -63,7 +63,7 @@
 - [x] Added `.github/dependabot.yml` for ongoing dependency monitoring.
 
 ## Remaining / Reported Issues
-- [ ] Notifications are still **not a feature in this codebase**. There is no notification channel, no notification scheduling, and no runtime notification flow. This is now explicit and the stale permission was removed.
+- [x] Notifications are intentionally out of scope for now. There is no notification channel, scheduling, or permission flow because the current product does not need notifications unless you specifically want reminder-style features later.
 - [ ] Remaining lint warnings are non-blocking and mostly tooling/assets related:
   - targetSdk is not the latest available version in this build setup
   - dependency update suggestions require newer AGP compatibility work
