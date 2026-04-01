@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.TypedValue
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.TypefaceSpan
@@ -129,8 +130,15 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
 
                 if (prefs.widgetType == 1 || prefs.widgetType == 2) {
                     views.setTextViewText(R.id.progress_text, buildProgressText(context, progress, prefs.fontFamily))
-                    views.setTextColor(R.id.progress_text, prefs.textColor)
-                    views.setFloat(R.id.progress_text, "setTextSize", prefs.fontSize.toFloat())
+                    views.setTextColor(
+                        R.id.progress_text,
+                        if (prefs.widgetType == 2) 0xFFFFFFFF.toInt() else prefs.textColor
+                    )
+                    views.setTextViewTextSize(
+                        R.id.progress_text,
+                        TypedValue.COMPLEX_UNIT_SP,
+                        getProgressTextSizeSp(prefs.widgetType, prefs.barSize)
+                    )
                 }
 
                 val intent = Intent(context, DayProgressWidgetProvider::class.java).apply {
@@ -193,6 +201,21 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
                     0 -> 6
                     2 -> 14
                     else -> 10
+                }
+            }
+        }
+
+        private fun getProgressTextSizeSp(widgetType: Int, barSize: Int): Float {
+            return when (widgetType) {
+                1 -> when (barSize) {
+                    0 -> 20f
+                    2 -> 26f
+                    else -> 23f
+                }
+                else -> when (barSize) {
+                    0 -> 11f
+                    2 -> 16f
+                    else -> 14f
                 }
             }
         }

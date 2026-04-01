@@ -67,13 +67,6 @@
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Font Settings">
-        <androidx.preference.SeekBarPreference
-            app:key="font_size"
-            app:title="Font Size"
-            app:min="10"
-            android:max="30"
-            app:defaultValue="16" />
-        
         <ListPreference
             app:key="font_family"
             app:title="Font Family"

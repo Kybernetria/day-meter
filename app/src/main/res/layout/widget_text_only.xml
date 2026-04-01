@@ -14,9 +14,9 @@
         android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:paddingStart="6dp"
+        android:paddingStart="10dp"
         android:paddingTop="0dp"
-        android:paddingEnd="6dp"
+        android:paddingEnd="10dp"
         android:paddingBottom="0dp">
 
         <TextView
@@ -26,7 +26,7 @@
             android:layout_centerInParent="true"
             android:text="@string/placeholder_progress"
             android:textColor="#FFFFFF"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold"
             android:contentDescription="@string/accessibility_progress_text" />
     </RelativeLayout>

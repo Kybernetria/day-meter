@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.util.TypedValue
 import android.provider.Settings
 import android.text.SpannableString
 import android.text.Spanned
@@ -164,8 +165,8 @@ class SettingsActivity : AppCompatActivity() {
             if (prefs.widgetType == 1 || prefs.widgetType == 2) {
                 widgetView.findViewById<TextView>(R.id.progress_text)?.apply {
                     text = buildProgressText(progress)
-                    setTextColor(prefs.textColor)
-                    textSize = prefs.fontSize.toFloat()
+                    setTextColor(if (prefs.widgetType == 2) 0xFFFFFFFF.toInt() else prefs.textColor)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, getProgressTextSizeSp(prefs.widgetType, prefs.barSize))
                     typeface = resolveTypeface(prefs.fontFamily)
                 }
             }
@@ -264,9 +265,24 @@ class SettingsActivity : AppCompatActivity() {
             }
             1 -> 28
             else -> when (barSize) {
-                0 -> 28
-                2 -> 42
-                else -> 34
+                0 -> 30
+                2 -> 44
+                else -> 36
+            }
+        }
+    }
+
+    private fun getProgressTextSizeSp(widgetType: Int, barSize: Int): Float {
+        return when (widgetType) {
+            1 -> when (barSize) {
+                0 -> 20f
+                2 -> 26f
+                else -> 23f
+            }
+            else -> when (barSize) {
+                0 -> 11f
+                2 -> 16f
+                else -> 14f
             }
         }
     }

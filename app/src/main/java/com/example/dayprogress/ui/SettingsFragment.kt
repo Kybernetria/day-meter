@@ -79,12 +79,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
 
-        findPreference<SeekBarPreference>(AppPreferences.KEY_FONT_SIZE)?.setOnPreferenceChangeListener { _, newValue ->
-            prefs.fontSize = newValue as Int
-            updateEverything()
-            true
-        }
-
         findPreference<ListPreference>(AppPreferences.KEY_FONT_FAMILY)?.setOnPreferenceChangeListener { _, newValue ->
             prefs.fontFamily = newValue as String
             updateEverything()
@@ -327,7 +321,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
             usageThreshold = 5
             ignoreBefore = 6 * 60
             dayEnd = 22 * 60
-            fontSize = 16
             fontFamily = "default"
             barSize = 1
             updateFrequency = 5

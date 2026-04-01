@@ -19,7 +19,6 @@ class AppPreferences(context: Context) {
         const val KEY_BORDER_COLOR = "border_color"
         const val KEY_BORDER_ENABLED = "border_enabled"
         const val KEY_BORDER_THICKNESS = "border_thickness"
-        const val KEY_FONT_SIZE = "font_size"
         const val KEY_FONT_FAMILY = "font_family"
         const val KEY_BAR_SIZE = "bar_size"
         const val KEY_USAGE_THRESHOLD = "usage_threshold"
@@ -87,10 +86,6 @@ class AppPreferences(context: Context) {
     var borderThickness: Int
         get() = safeGetInt(KEY_BORDER_THICKNESS, 2)
         set(value) = prefs.edit { putInt(KEY_BORDER_THICKNESS, value) }
-
-    var fontSize: Int
-        get() = safeGetInt(KEY_FONT_SIZE, 16)
-        set(value) = prefs.edit { putInt(KEY_FONT_SIZE, value) }
 
     var fontFamily: String
         get() = prefs.getString(KEY_FONT_FAMILY, "default") ?: "default"
