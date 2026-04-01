@@ -14,12 +14,15 @@
         android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="8dp">
+        android:paddingStart="8dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp">
 
         <ImageView
             android:id="@+id/progress_bar_image"
             android:layout_width="match_parent"
-            android:layout_height="24dp"
+            android:layout_height="20dp"
             android:layout_centerInParent="true"
             android:scaleType="fitXY"
             android:contentDescription="@string/accessibility_progress_bar" />

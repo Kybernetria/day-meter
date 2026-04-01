@@ -24,6 +24,8 @@
 - [x] Settings preview now refreshes on activity resume and after updates, making it much less likely to look stale.
 - [x] App chrome now follows the progress fill color.
 - [x] App chrome now supports a left-to-right gradient using the progress fill start/end colors where the platform allows it.
+- [x] Color picker dialogs now open on the current selected color, making small adjustments practical.
+- [x] Widget layouts were compacted vertically so the bar-focused widget wastes less top/bottom space.
 - [x] Progress fill now supports a two-color horizontal gradient.
 - [x] The settings screen was visually refreshed with a nicer preview card, softer surfaces, and better spacing.
 - [x] The launcher icon was redesigned to a fresher day-meter style and the app branding was renamed from `Day Progress` to `day-meter`.
@@ -69,7 +71,9 @@
   - dependency update suggestions require newer AGP compatibility work
   - Room could be migrated from kapt to KSP for faster builds
   - launcher icon lint guidance may still want further polishing depending on launcher/icon masks
-- [ ] GitHub publish + latest release creation is the final publishing step for this pass.
+- [x] `main` branch protection was enabled with pull-request-based protection and force-push/deletion disabled.
+- [x] Old Dependabot branches were cleaned up; Dependabot remains enabled for future updates.
+- [ ] GitHub publish + latest release creation is the final publishing step for the current local changes.
 
 ## Files Changed
 - `.github/dependabot.yml`
