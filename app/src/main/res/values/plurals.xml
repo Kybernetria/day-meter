@@ -1,0 +1,6 @@
+<resources>
+    <plurals name="usage_threshold_summary">
+        <item quantity="one">%1$d minute of usage to start the day</item>
+        <item quantity="other">%1$d minutes of usage to start the day</item>
+    </plurals>
+</resources>

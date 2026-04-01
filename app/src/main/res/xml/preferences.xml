@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/section_widget_type">
+        <ListPreference
+            app:defaultValue="2"
+            app:entries="@array/widget_type_entries"
+            app:entryValues="@array/widget_type_values"
+            app:key="widget_type"
+            app:title="Display Mode" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/section_theme">
+        <ListPreference
+            app:defaultValue="0"
+            app:entries="@array/theme_entries"
+            app:entryValues="@array/theme_values"
+            app:key="theme"
+            app:title="Base Theme" />
+        
+        <Preference
+            app:key="progress_color"
+            app:title="@string/progress_fill_color"
+            app:summary="Tap to change color and transparency" />
+
+        <Preference
+            app:key="progress_gradient_end_color"
+            app:title="@string/progress_gradient_end_color"
+            app:summary="Optional second color for the progress gradient" />
+
+        <Preference
+            app:key="progress_unfilled_color"
+            app:title="@string/progress_unfilled_color"
+            app:summary="Color of the uncompleted portion" />
+
+        <Preference
+            app:key="background_color"
+            app:title="@string/background_color"
+            app:summary="Widget background color and transparency" />
+
+        <Preference
+            app:key="text_color"
+            app:title="@string/text_color"
+            app:summary="Percentage text color" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Border Settings">
+        <SwitchPreferenceCompat
+            app:key="border_enabled"
+            app:title="Enable Border"
+            app:defaultValue="false" />
+        
+        <androidx.preference.SeekBarPreference
+            app:key="border_thickness"
+            app:title="Border Thickness"
+            app:min="1"
+            android:max="10"
+            app:defaultValue="2"
+            app:dependency="border_enabled" />
+        
+        <Preference
+            app:key="border_color"
+            app:title="@string/border_color"
+            app:summary="Tap to change color"
+            app:dependency="border_enabled" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Font Settings">
+        <androidx.preference.SeekBarPreference
+            app:key="font_size"
+            app:title="Font Size"
+            app:min="10"
+            android:max="30"
+            app:defaultValue="16" />
+        
+        <ListPreference
+            app:key="font_family"
+            app:title="Font Family"
+            app:entries="@array/font_family_entries"
+            app:entryValues="@array/font_family_values"
+            app:defaultValue="default" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/section_time">
+        <androidx.preference.SeekBarPreference
+            app:defaultValue="5"
+            app:key="usage_threshold"
+            android:max="60"
+            app:min="1"
+            app:title="@string/label_usage_threshold" />
+
+        <Preference
+            app:key="ignore_before"
+            app:title="@string/label_ignore_before" />
+
+        <Preference
+            app:key="day_end"
+            app:title="@string/label_day_end" />
+
+        <Preference
+            app:key="manual_start_time"
+            app:title="@string/label_manual_start"
+            app:summary="Set start time manually for today" />
+            
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="is_manual_locked"
+            app:title="@string/label_lock_manual" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Widget Behavior">
+        <ListPreference
+            app:key="update_frequency"
+            app:title="@string/label_update_frequency"
+            app:entries="@array/update_frequency_entries"
+            app:entryValues="@array/update_frequency_values"
+            app:defaultValue="5" />
+
+        <Preference
+            app:key="force_update"
+            app:title="@string/refresh_widget_now"
+            app:summary="@string/refresh_widget_now_summary" />
+    </PreferenceCategory>
+
+    <PreferenceCategory>
+        <Preference
+            app:key="reset_defaults"
+            app:title="Reset to Defaults"
+            app:summary="Reset all settings to default values"
+            app:icon="@android:drawable/ic_menu_revert" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

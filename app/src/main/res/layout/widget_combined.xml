@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    
+    <!-- Background layer with border support -->
+    <ImageView
+        android:id="@+id/widget_background_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="@string/widget_background_desc" />
+    
+    <!-- Content layer -->
+    <LinearLayout
+        android:id="@+id/widget_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="8dp">
+        
+        <TextView
+            android:id="@+id/progress_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/placeholder_progress"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:contentDescription="@string/accessibility_progress_text" />
+
+        <ImageView
+            android:id="@+id/progress_bar_image"
+            android:layout_width="match_parent"
+            android:layout_height="12dp"
+            android:layout_marginTop="4dp"
+            android:scaleType="fitXY"
+            android:contentDescription="@string/accessibility_progress_bar" />
+    </LinearLayout>
+</FrameLayout>
