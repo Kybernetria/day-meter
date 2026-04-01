@@ -24,7 +24,4 @@ APK output:
 - `app/build/outputs/apk/debug/app-debug.apk`
 
 ## Project status
-This repo is focused on keeping the app simple, robust, and easy to iterate on.
-
-Tracking file:
-- `DEVELOPMENT_TRACKER.md`
+This repo is focused on keeping the app simple and robust.
