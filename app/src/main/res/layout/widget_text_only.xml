@@ -14,9 +14,9 @@
         android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:paddingStart="4dp"
+        android:paddingStart="2dp"
         android:paddingTop="0dp"
-        android:paddingEnd="4dp"
+        android:paddingEnd="2dp"
         android:paddingBottom="0dp">
 
         <TextView

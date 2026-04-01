@@ -130,10 +130,7 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
 
                 if (prefs.widgetType == 1 || prefs.widgetType == 2) {
                     views.setTextViewText(R.id.progress_text, buildProgressText(context, progress, prefs.fontFamily))
-                    views.setTextColor(
-                        R.id.progress_text,
-                        if (prefs.widgetType == 2) 0xFFFFFFFF.toInt() else prefs.textColor
-                    )
+                    views.setTextColor(R.id.progress_text, prefs.textColor)
                     views.setTextViewTextSize(
                         R.id.progress_text,
                         TypedValue.COMPLEX_UNIT_SP,

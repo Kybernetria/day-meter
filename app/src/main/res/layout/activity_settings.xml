@@ -18,8 +18,8 @@
 
     <include layout="@layout/settings_widget_preview" />
 
-    <FrameLayout
-        android:id="@+id/settings_container"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/settings_card"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -27,7 +27,15 @@
         android:layout_marginTop="4dp"
         android:layout_marginEnd="12dp"
         android:layout_marginBottom="12dp"
-        android:background="@drawable/widget_background"
-        android:clipToPadding="false"
-        android:padding="4dp" />
+        app:cardCornerRadius="20dp"
+        app:cardElevation="6dp"
+        app:strokeWidth="1dp">
+
+        <FrameLayout
+            android:id="@+id/settings_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="6dp" />
+    </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

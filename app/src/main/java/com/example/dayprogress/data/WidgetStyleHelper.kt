@@ -17,7 +17,7 @@ object WidgetStyleHelper {
         borderColor: Int,
         borderThickness: Int,
         borderEnabled: Boolean,
-        cornerRadius: Float = 4f,
+        cornerRadius: Float = 2f,
         widthDp: Int = 200,
         heightDp: Int = 100
     ): Bitmap {
@@ -47,7 +47,7 @@ object WidgetStyleHelper {
         filledStartColor: Int,
         filledEndColor: Int,
         unfilledColor: Int,
-        cornerRadiusDp: Float = 3f,
+        cornerRadiusDp: Float = 2f,
         widthDp: Int = 240,
         heightDp: Int = 12
     ): Bitmap {

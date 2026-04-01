@@ -14,10 +14,10 @@
         android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:paddingStart="2dp"
-        android:paddingTop="2dp"
-        android:paddingEnd="2dp"
-        android:paddingBottom="2dp">
+        android:paddingStart="1dp"
+        android:paddingTop="1dp"
+        android:paddingEnd="1dp"
+        android:paddingBottom="1dp">
 
         <ImageView
             android:id="@+id/progress_bar_image"

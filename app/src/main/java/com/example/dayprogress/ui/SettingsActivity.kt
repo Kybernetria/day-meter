@@ -3,6 +3,7 @@ package com.example.dayprogress.ui
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -136,6 +137,17 @@ class SettingsActivity : AppCompatActivity() {
             previewContainer.layoutParams = previewContainer.layoutParams.apply {
                 height = dpToPx(getPreviewHeightDp(prefs.widgetType, prefs.barSize))
             }
+            previewContainer.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 2f * resources.displayMetrics.density
+                if (prefs.theme == 3) {
+                    setColor(Color.TRANSPARENT)
+                    setStroke(1, ColorUtils.setAlphaComponent(prefs.progressColor, 72))
+                } else {
+                    setColor(ColorUtils.setAlphaComponent(prefs.backgroundColor, 24))
+                    setStroke(1, ColorUtils.setAlphaComponent(prefs.progressColor, 40))
+                }
+            }
 
             previewContainer.removeAllViews()
             val widgetView = LayoutInflater.from(this).inflate(layoutId, previewContainer, false)
@@ -165,7 +177,7 @@ class SettingsActivity : AppCompatActivity() {
             if (prefs.widgetType == 1 || prefs.widgetType == 2) {
                 widgetView.findViewById<TextView>(R.id.progress_text)?.apply {
                     text = buildProgressText(progress)
-                    setTextColor(if (prefs.widgetType == 2) 0xFFFFFFFF.toInt() else prefs.textColor)
+                    setTextColor(prefs.textColor)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, getProgressTextSizeSp(prefs.widgetType, prefs.barSize))
                     typeface = resolveTypeface(prefs.fontFamily)
                 }
@@ -213,6 +225,19 @@ class SettingsActivity : AppCompatActivity() {
                 cornerRadius = 20f * resources.displayMetrics.density
             }
             strokeColor = ColorUtils.setAlphaComponent(midColor, 140)
+        }
+
+        findViewById<MaterialCardView>(R.id.settings_card)?.apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(
+                    ColorUtils.setAlphaComponent(startColor, 40),
+                    ColorUtils.setAlphaComponent(endColor, 30)
+                )
+            ).apply {
+                cornerRadius = 20f * resources.displayMetrics.density
+            }
+            strokeColor = ColorUtils.setAlphaComponent(midColor, 120)
         }
 
         findViewById<TextView>(R.id.preview_title)?.setTextColor(onPrimaryColor)

@@ -3,10 +3,12 @@ package com.example.dayprogress.ui
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.net.Uri
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.ListPreference
@@ -35,6 +37,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
         repository = DayRepository(requireContext())
         repository.checkAndResetDay()
         bindPreferences()
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        view.setBackgroundColor(Color.TRANSPARENT)
+        listView.apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            clipToPadding = false
+            val inset = (8 * resources.displayMetrics.density).toInt()
+            setPadding(inset, inset, inset, inset)
+        }
     }
 
     private fun bindPreferences() {
