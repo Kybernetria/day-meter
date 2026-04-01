@@ -20,6 +20,7 @@ class AppPreferences(context: Context) {
         const val KEY_BORDER_THICKNESS = "border_thickness"
         const val KEY_FONT_SIZE = "font_size"
         const val KEY_FONT_FAMILY = "font_family"
+        const val KEY_BAR_SIZE = "bar_size"
         const val KEY_USAGE_THRESHOLD = "usage_threshold"
         const val KEY_IGNORE_BEFORE = "ignore_before"
         const val KEY_DAY_END = "day_end"
@@ -98,6 +99,10 @@ class AppPreferences(context: Context) {
     var fontFamily: String
         get() = prefs.getString(KEY_FONT_FAMILY, "default") ?: "default"
         set(value) = prefs.edit().putString(KEY_FONT_FAMILY, value).apply()
+
+    var barSize: Int
+        get() = safeGetInt(KEY_BAR_SIZE, 1)
+        set(value) = prefs.edit().putString(KEY_BAR_SIZE, value.toString()).apply()
 
     var usageThreshold: Int
         get() = safeGetInt(KEY_USAGE_THRESHOLD, 5)

@@ -26,6 +26,8 @@
 - [x] App chrome now supports a left-to-right gradient using the progress fill start/end colors where the platform allows it.
 - [x] Color picker dialogs now open on the current selected color, making small adjustments practical.
 - [x] Widget layouts were compacted vertically so the bar-focused widget wastes less top/bottom space.
+- [x] Added explicit small / medium / large bar sizes for better visibility tuning.
+- [x] Reduced the widget provider minimum vertical size so compact widgets can shrink further on launchers that support it.
 - [x] Progress fill now supports a two-color horizontal gradient.
 - [x] The settings screen was visually refreshed with a nicer preview card, softer surfaces, and better spacing.
 - [x] The launcher icon was redesigned to a fresher day-meter style and the app branding was renamed from `Day Progress` to `day-meter`.

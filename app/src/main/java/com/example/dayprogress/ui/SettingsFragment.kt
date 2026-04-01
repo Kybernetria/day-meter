@@ -91,6 +91,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
 
+        findPreference<ListPreference>(AppPreferences.KEY_BAR_SIZE)?.setOnPreferenceChangeListener { _, newValue ->
+            prefs.barSize = (newValue as String).toInt()
+            updateEverything()
+            true
+        }
+
         // Usage Threshold
         findPreference<SeekBarPreference>(AppPreferences.KEY_USAGE_THRESHOLD)?.apply {
             summary = resources.getQuantityString(R.plurals.usage_threshold_summary, value, value)
@@ -323,6 +329,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             dayEnd = 22 * 60
             fontSize = 16
             fontFamily = "default"
+            barSize = 1
             updateFrequency = 5
             detectedStartTime = -1L
             manualStartTime = -1L

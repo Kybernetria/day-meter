@@ -36,6 +36,17 @@
         <item>monospace</item>
     </string-array>
 
+    <string-array name="bar_size_entries">
+        <item>Small</item>
+        <item>Medium</item>
+        <item>Large</item>
+    </string-array>
+    <string-array name="bar_size_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
     <string-array name="update_frequency_entries">
         <item>1 minute</item>
         <item>5 minutes</item>

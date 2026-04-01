@@ -27,14 +27,14 @@
             android:layout_height="wrap_content"
             android:text="@string/placeholder_progress"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold"
             android:contentDescription="@string/accessibility_progress_text" />
 
         <ImageView
             android:id="@+id/progress_bar_image"
             android:layout_width="match_parent"
-            android:layout_height="12dp"
+            android:layout_height="16dp"
             android:layout_marginTop="1dp"
             android:scaleType="fitXY"
             android:contentDescription="@string/accessibility_progress_bar" />

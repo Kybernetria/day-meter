@@ -10,33 +10,21 @@
         android:scaleType="fitXY"
         android:contentDescription="@string/widget_background_desc" />
 
-    <LinearLayout
+    <RelativeLayout
         android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
         android:paddingStart="8dp"
         android:paddingTop="2dp"
         android:paddingEnd="8dp"
         android:paddingBottom="2dp">
 
-        <TextView
-            android:id="@+id/progress_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/placeholder_progress"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:contentDescription="@string/accessibility_progress_text" />
-
         <ImageView
             android:id="@+id/progress_bar_image"
             android:layout_width="match_parent"
             android:layout_height="12dp"
-            android:layout_marginTop="1dp"
+            android:layout_centerInParent="true"
             android:scaleType="fitXY"
             android:contentDescription="@string/accessibility_progress_bar" />
-    </LinearLayout>
+    </RelativeLayout>
 </FrameLayout>

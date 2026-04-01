@@ -111,6 +111,14 @@
 
     <PreferenceCategory app:title="Widget Behavior">
         <ListPreference
+            app:key="bar_size"
+            app:title="@string/label_bar_size"
+            app:entries="@array/bar_size_entries"
+            app:entryValues="@array/bar_size_values"
+            app:defaultValue="1"
+            app:summary="@string/bar_size_summary" />
+
+        <ListPreference
             app:key="update_frequency"
             app:title="@string/label_update_frequency"
             app:entries="@array/update_frequency_entries"

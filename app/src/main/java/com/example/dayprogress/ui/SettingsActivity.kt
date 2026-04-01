@@ -131,11 +131,7 @@ class SettingsActivity : AppCompatActivity() {
             val progress = repository.calculateProgress()
             val previewContainer = findViewById<FrameLayout>(R.id.preview_container) ?: return
 
-            val layoutId = when (prefs.widgetType) {
-                0 -> R.layout.widget_progress_bar
-                1 -> R.layout.widget_text_only
-                else -> R.layout.widget_combined
-            }
+            val layoutId = getLayoutId(prefs.widgetType, prefs.barSize)
 
             previewContainer.removeAllViews()
             val widgetView = LayoutInflater.from(this).inflate(layoutId, previewContainer, false)
@@ -157,7 +153,7 @@ class SettingsActivity : AppCompatActivity() {
                         filledStartColor = prefs.progressColor,
                         filledEndColor = prefs.progressGradientEndColor,
                         unfilledColor = prefs.progressUnfilledColor,
-                        heightDp = if (prefs.widgetType == 0) 24 else 12
+                        heightDp = getBarHeightDp(prefs.widgetType, prefs.barSize)
                     )
                 )
             }
@@ -221,6 +217,38 @@ class SettingsActivity : AppCompatActivity() {
         window.statusBarColor = ColorUtils.blendARGB(midColor, 0xFF000000.toInt(), 0.2f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             window.navigationBarColor = ColorUtils.blendARGB(midColor, 0xFF000000.toInt(), 0.1f)
+        }
+    }
+
+    private fun getLayoutId(widgetType: Int, barSize: Int): Int {
+        return when (widgetType) {
+            0 -> when (barSize) {
+                0 -> R.layout.widget_progress_bar_small
+                2 -> R.layout.widget_progress_bar_large
+                else -> R.layout.widget_progress_bar
+            }
+            1 -> R.layout.widget_text_only
+            else -> when (barSize) {
+                0 -> R.layout.widget_combined_small
+                2 -> R.layout.widget_combined_large
+                else -> R.layout.widget_combined
+            }
+        }
+    }
+
+    private fun getBarHeightDp(widgetType: Int, barSize: Int): Int {
+        return if (widgetType == 0) {
+            when (barSize) {
+                0 -> 12
+                2 -> 24
+                else -> 18
+            }
+        } else {
+            when (barSize) {
+                0 -> 8
+                2 -> 16
+                else -> 12
+            }
         }
     }
 

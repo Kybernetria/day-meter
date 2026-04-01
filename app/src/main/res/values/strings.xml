@@ -17,6 +17,7 @@
     <string name="label_day_end">Day End Time</string>
     <string name="label_manual_start">Manual Start Time</string>
     <string name="label_lock_manual">Lock Manual Start Time</string>
+    <string name="label_bar_size">Bar Size</string>
     <string name="label_update_frequency">Update Frequency</string>
     
     <!-- Permissions -->
@@ -72,4 +73,5 @@
     <string name="border_color">Border Color</string>
     <string name="refresh_widget_now">Refresh Widget Now</string>
     <string name="refresh_widget_now_summary">Force an immediate widget refresh</string>
+    <string name="bar_size_summary">Small, medium, or large bar thickness. The launcher may still need manual vertical resize.</string>
 </resources>
