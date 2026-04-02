@@ -12,14 +12,15 @@ android {
         applicationId "com.example.dayprogress"
         minSdk 23
         targetSdk 36
-        versionCode 26
-        versionName "1.0.26"
+        versionCode 32
+        versionName "1.0.32"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
+            signingConfig signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
