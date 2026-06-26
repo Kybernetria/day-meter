@@ -72,7 +72,22 @@ class DayRepository(private val context: Context) {
     fun getEffectiveStartTime(nowMillis: Long = System.currentTimeMillis()): Long {
         val window = getCurrentDayWindow(nowMillis)
         val manualStart = getManualStartTime(window, nowMillis)
-        return if (manualStart != -1L) manualStart else prefs.detectedStartTime
+        if (manualStart != -1L) {
+            return manualStart
+        }
+
+        val detectedStart = prefs.detectedStartTime
+        if (detectedStart == -1L) {
+            return -1L
+        }
+
+        if (detectedStart in window.ignoreBeforeMillis..window.dayEndMillis) {
+            return detectedStart
+        }
+
+        Log.w("DayRepository", "Clearing stale detected start time $detectedStart for ${window.logicalDayId}")
+        prefs.detectedStartTime = -1L
+        return -1L
     }
 
     fun getCurrentDayEndTime(nowMillis: Long = System.currentTimeMillis()): Long {
