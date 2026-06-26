@@ -8,8 +8,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     
     <!-- Alarm Permissions -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     
     <application
         android:allowBackup="true"
