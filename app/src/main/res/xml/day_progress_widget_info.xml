@@ -4,7 +4,7 @@
     android:minHeight="22dp"
     android:minResizeWidth="150dp"
     android:minResizeHeight="18dp"
-    android:updatePeriodMillis="0"
+    android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_progress_bar"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen">
