@@ -4,6 +4,20 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
+def releaseSigningValue = { String name ->
+    def value = providers.gradleProperty(name).orNull ?: System.getenv(name)
+    return value?.trim()
+}
+
+def releaseSigning = [
+    storeFile    : releaseSigningValue('RELEASE_STORE_FILE'),
+    storePassword: releaseSigningValue('RELEASE_STORE_PASSWORD'),
+    keyAlias     : releaseSigningValue('RELEASE_KEY_ALIAS'),
+    keyPassword  : releaseSigningValue('RELEASE_KEY_PASSWORD')
+]
+
+def releaseSigningConfigured = releaseSigning.values().every { it }
+
 android {
     namespace 'com.example.dayprogress'
     compileSdk 36
@@ -12,15 +26,28 @@ android {
         applicationId "com.example.dayprogress"
         minSdk 23
         targetSdk 36
-        versionCode 32
-        versionName "1.0.32"
+        versionCode 33
+        versionName "1.0.33"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseSigning.storeFile)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -34,6 +61,19 @@ android {
     }
     buildFeatures {
         viewBinding true
+    }
+}
+
+// Never allow an accidentally unsigned (or debug-signed) release artifact.
+gradle.taskGraph.whenReady { graph ->
+    def buildsReleaseArtifact = graph.allTasks.any { task ->
+        ['assembleRelease', 'bundleRelease', 'packageRelease', 'signReleaseBundle', 'signRelease'].contains(task.name)
+    }
+    if (buildsReleaseArtifact && !releaseSigningConfigured) {
+        throw new GradleException(
+            'Release signing is required. Set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, ' +
+            'RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD as Gradle properties or environment variables.'
+        )
     }
 }
 
