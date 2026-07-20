@@ -135,10 +135,16 @@ class DayRepository(private val context: Context) {
             }
 
             val detector = UsageDetector(context)
-            if (detector.isUsageThresholdMet(window.ignoreBeforeMillis, prefs.usageThreshold)) {
-                prefs.detectedStartTime = nowMillis
+            val detectedStartTime = detector.findThresholdCrossingTime(
+                logicalDayStartMillis = window.logicalDayStartMillis,
+                ignoreBeforeMillis = window.ignoreBeforeMillis,
+                thresholdMinutes = prefs.usageThreshold,
+                nowMillis = nowMillis
+            )
+            if (detectedStartTime != null) {
+                prefs.detectedStartTime = detectedStartTime
                 AlarmScheduler.scheduleWidgetUpdates(context)
-                Log.d("DayRepository", "Detected day start at $nowMillis")
+                Log.d("DayRepository", "Detected day start at $detectedStartTime (checked at $nowMillis)")
                 return true
             }
 
