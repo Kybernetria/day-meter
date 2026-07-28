@@ -1,6 +1,7 @@
 package com.example.dayprogress.data
 
 import android.annotation.SuppressLint
+import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -25,11 +26,7 @@ class UsageDetector(private val context: Context) {
         }
 
         val result = analyzeUsage(logicalDayStartMillis, ignoreBeforeMillis, thresholdMinutes, nowMillis)
-        Log.d(
-            TAG,
-            "Qualifying usage since $ignoreBeforeMillis: ${result.qualifyingUsageMillis / MINUTE_MILLIS} min " +
-                "(threshold: $thresholdMinutes, crossedAt=${result.thresholdCrossedAtMillis})"
-        )
+        Log.d(TAG, "Usage threshold analysis completed")
         return result.thresholdCrossedAtMillis
     }
 
@@ -45,13 +42,13 @@ class UsageDetector(private val context: Context) {
                 ?: return UsageEventAnalyzer.Result(null, 0L)
             val queryStartMillis = minOf(logicalDayStartMillis, ignoreBeforeMillis)
             val usageEvents = usageStatsManager.queryEvents(queryStartMillis, nowMillis)
-            val androidEvent = UsageEvents.Event()
-            val events = mutableListOf<UsageEventAnalyzer.Event>()
-
-            while (usageEvents.hasNextEvent()) {
-                usageEvents.getNextEvent(androidEvent)
-                adaptEvent(androidEvent)?.let(events::add)
-            }
+            val events = sequence {
+                val androidEvent = UsageEvents.Event()
+                while (usageEvents.hasNextEvent()) {
+                    usageEvents.getNextEvent(androidEvent)
+                    adaptEvent(androidEvent)?.let { yield(it) }
+                }
+            }.asIterable()
 
             UsageEventAnalyzer.analyze(
                 queryStartMillis = queryStartMillis,
@@ -118,11 +115,34 @@ class UsageDetector(private val context: Context) {
         return packages
     }
 
-    private companion object {
-        const val TAG = "UsageDetector"
-        const val MINUTE_MILLIS = 60_000L
+    companion object {
+        private const val TAG = "UsageDetector"
+        private const val MINUTE_MILLIS = 60_000L
 
-        val ACTIVITY_EVENT_TYPES = setOf(
+        @Suppress("DEPRECATION")
+        fun hasUsageStatsPermission(context: Context): Boolean {
+            return try {
+                val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    appOps.unsafeCheckOpNoThrow(
+                        AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        android.os.Process.myUid(),
+                        context.packageName
+                    )
+                } else {
+                    appOps.checkOpNoThrow(
+                        AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        android.os.Process.myUid(),
+                        context.packageName
+                    )
+                }
+                mode == AppOpsManager.MODE_ALLOWED
+            } catch (e: Exception) {
+                false
+            }
+        }
+
+        private val ACTIVITY_EVENT_TYPES = setOf(
             UsageEventAnalyzer.EventType.ACTIVITY_RESUMED,
             UsageEventAnalyzer.EventType.ACTIVITY_PAUSED,
             UsageEventAnalyzer.EventType.ACTIVITY_STOPPED

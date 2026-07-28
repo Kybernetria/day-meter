@@ -2,13 +2,7 @@ package com.example.dayprogress.data
 
 import android.content.Context
 import android.util.Log
-import com.example.dayprogress.worker.AlarmScheduler
-import com.example.dayprogress.worker.WorkManagerHelper
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
 class DayRepository(private val context: Context) {
     data class DayWindow(
@@ -19,45 +13,42 @@ class DayRepository(private val context: Context) {
         val crossesMidnight: Boolean
     )
 
-    private val prefs = AppPreferences(context)
-    private val dayIdFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply {
-        timeZone = TimeZone.getDefault()
+    enum class DayState {
+        BEFORE_WINDOW,
+        USAGE_ACCESS_NEEDED,
+        WAITING_FOR_START,
+        STARTS_IN_FUTURE,
+        ACTIVE,
+        COMPLETE,
+        ENDED_WITHOUT_START
     }
 
-    companion object {
-        private const val MINUTE_MILLIS = 60_000L
-        private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
-    }
+    data class DayStatus(
+        val state: DayState,
+        val progress: Int,
+        val startTimeMillis: Long,
+        val endTimeMillis: Long,
+        val timeRemainingMillis: Long
+    )
+
+    private val prefs = AppPreferences(context)
+
 
     fun getPreferences() = prefs
 
     fun getCurrentDayWindow(nowMillis: Long = System.currentTimeMillis()): DayWindow {
-        val now = Calendar.getInstance().apply { timeInMillis = nowMillis }
-        val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-        val crossesMidnight = prefs.dayEnd <= prefs.ignoreBefore
-
-        val logicalDay = Calendar.getInstance().apply {
-            timeInMillis = nowMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-
-        if (crossesMidnight && currentMinutes < prefs.dayEnd) {
-            logicalDay.add(Calendar.DAY_OF_YEAR, -1)
-        }
-
-        val logicalDayStartMillis = logicalDay.timeInMillis
-        val ignoreBeforeMillis = logicalDayStartMillis + (prefs.ignoreBefore * MINUTE_MILLIS)
-        val dayEndMillis = logicalDayStartMillis + (prefs.dayEnd * MINUTE_MILLIS) + if (crossesMidnight) DAY_MILLIS else 0L
+        val calculated = DayWindowCalculator.calculate(
+            nowMillis = nowMillis,
+            ignoreBeforeMinutes = prefs.ignoreBefore,
+            dayEndMinutes = prefs.dayEnd
+        )
 
         return DayWindow(
-            logicalDayId = dayIdFormatter.format(Date(logicalDayStartMillis)),
-            logicalDayStartMillis = logicalDayStartMillis,
-            ignoreBeforeMillis = ignoreBeforeMillis,
-            dayEndMillis = dayEndMillis,
-            crossesMidnight = crossesMidnight
+            logicalDayId = DayIdFormatter.format(calculated.logicalDayStartMillis),
+            logicalDayStartMillis = calculated.logicalDayStartMillis,
+            ignoreBeforeMillis = calculated.ignoreBeforeMillis,
+            dayEndMillis = calculated.dayEndMillis,
+            crossesMidnight = calculated.crossesMidnight
         )
     }
 
@@ -98,6 +89,33 @@ class DayRepository(private val context: Context) {
         return getCurrentDayWindow(nowMillis).ignoreBeforeMillis
     }
 
+    fun resolveClockTimeInWindow(window: DayWindow, clockMinutes: Int): Long {
+        val dayOffset = if (window.crossesMidnight && clockMinutes < prefs.dayEnd) 1 else 0
+        return DayWindowCalculator.atClockMillis(window.logicalDayStartMillis, clockMinutes, dayOffset)
+    }
+
+    fun getDayStatus(nowMillis: Long = System.currentTimeMillis()): DayStatus {
+        checkAndResetDay(nowMillis)
+        val window = getCurrentDayWindow(nowMillis)
+        val start = getEffectiveStartTime(nowMillis)
+        val progress = calculateProgress(nowMillis)
+        val state = when {
+            start != -1L && nowMillis < start -> DayState.STARTS_IN_FUTURE
+            start != -1L && nowMillis >= window.dayEndMillis -> DayState.COMPLETE
+            start != -1L -> DayState.ACTIVE
+            nowMillis >= window.dayEndMillis -> DayState.ENDED_WITHOUT_START
+            nowMillis < window.ignoreBeforeMillis -> DayState.BEFORE_WINDOW
+            !UsageDetector.hasUsageStatsPermission(context) -> DayState.USAGE_ACCESS_NEEDED
+            else -> DayState.WAITING_FOR_START
+        }
+        val remaining = when (state) {
+            DayState.ACTIVE -> (window.dayEndMillis - nowMillis).coerceAtLeast(0L)
+            DayState.STARTS_IN_FUTURE -> (start - nowMillis).coerceAtLeast(0L)
+            else -> 0L
+        }
+        return DayStatus(state, progress, start, window.dayEndMillis, remaining)
+    }
+
     fun checkAndResetDay(nowMillis: Long = System.currentTimeMillis()) {
         val window = getCurrentDayWindow(nowMillis)
 
@@ -116,8 +134,6 @@ class DayRepository(private val context: Context) {
             }
 
             prefs.lastResetDate = window.logicalDayId
-            AlarmScheduler.scheduleWidgetUpdates(context)
-            WorkManagerHelper.scheduleImmediateUpdate(context)
         }
     }
 
@@ -143,8 +159,7 @@ class DayRepository(private val context: Context) {
             )
             if (detectedStartTime != null) {
                 prefs.detectedStartTime = detectedStartTime
-                AlarmScheduler.scheduleWidgetUpdates(context)
-                Log.d("DayRepository", "Detected day start at $detectedStartTime (checked at $nowMillis)")
+                Log.d("DayRepository", "Detected a day start from on-device usage")
                 return true
             }
 
@@ -225,10 +240,7 @@ class DayRepository(private val context: Context) {
         nowMillis: Long,
         allowFuture: Boolean
     ): Long? {
-        var candidate = window.logicalDayStartMillis + (clockMinutes * MINUTE_MILLIS)
-        if (window.crossesMidnight && clockMinutes < prefs.dayEnd) {
-            candidate += DAY_MILLIS
-        }
+        val candidate = resolveClockTimeInWindow(window, clockMinutes)
 
         if (candidate > window.dayEndMillis) {
             return null

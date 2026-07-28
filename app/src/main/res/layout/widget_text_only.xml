@@ -8,7 +8,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitXY"
-        android:contentDescription="@string/widget_background_desc" />
+        android:importantForAccessibility="no" />
 
     <RelativeLayout
         android:id="@+id/widget_root"
@@ -27,7 +27,6 @@
             android:text="@string/placeholder_progress"
             android:textColor="#FFFFFF"
             android:textSize="22sp"
-            android:textStyle="bold"
-            android:contentDescription="@string/accessibility_progress_text" />
+            android:textStyle="bold" />
     </RelativeLayout>
 </FrameLayout>

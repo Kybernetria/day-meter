@@ -1,47 +1,36 @@
 package com.example.dayprogress.ui
 
-import android.app.AppOpsManager
-import android.content.Context
-import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
-import android.provider.Settings
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.TypefaceSpan
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.WindowCompat
 import com.google.android.material.card.MaterialCardView
 import com.example.dayprogress.R
 import com.example.dayprogress.data.AppPreferences
+import com.example.dayprogress.data.CheckpointEngine
 import com.example.dayprogress.data.DayRepository
 import com.example.dayprogress.data.WidgetStyleHelper
 import com.example.dayprogress.databinding.ActivitySettingsBinding
-import com.example.dayprogress.worker.AlarmScheduler
+import com.example.dayprogress.widget.DayProgressWidgetProvider
+import com.example.dayprogress.widget.WidgetDisplayFormatter
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: AppPreferences
-
-    private val usageStatsResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (hasUsageStatsPermission()) {
-            initializeApp(null)
-        } else {
-            showPermissionDialog()
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,12 +43,11 @@ class SettingsActivity : AppCompatActivity() {
             supportActionBar?.title = getString(R.string.settings_title)
             applyAppColors()
 
-            if (hasUsageStatsPermission()) {
-                initializeApp(savedInstanceState)
-                checkAlarmPermission()
-            } else {
-                showPermissionDialog()
+            WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightStatusBars = ColorUtils.calculateLuminance(getBaseSurfaceColor()) > 0.5
+                isAppearanceLightNavigationBars = ColorUtils.calculateLuminance(getBaseSurfaceColor()) > 0.5
             }
+            initializeApp(savedInstanceState)
         } catch (e: Exception) {
             Log.e("SettingsActivity", "Fatal error in onCreate", e)
         }
@@ -70,52 +58,10 @@ class SettingsActivity : AppCompatActivity() {
         if (::prefs.isInitialized) {
             applyAppColors()
             updatePreview()
+            (supportFragmentManager.findFragmentById(R.id.settings_container) as? SettingsFragment)
+                ?.refreshPermissionState()
+            DayProgressWidgetProvider.updateAllWidgets(this)
         }
-    }
-
-    private fun checkAlarmPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !AlarmScheduler.canScheduleExactAlarms(this)) {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.alarm_permission_title)
-                .setMessage(R.string.alarm_permission_message)
-                .setPositiveButton(R.string.permission_grant) { _, _ ->
-                    val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                    startActivity(intent)
-                }
-                .setNegativeButton(R.string.alarm_permission_skip, null)
-                .show()
-        }
-    }
-
-    private fun hasUsageStatsPermission(): Boolean {
-        return try {
-            val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
-            } else {
-                @Suppress("DEPRECATION")
-                appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
-            }
-            mode == AppOpsManager.MODE_ALLOWED
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private fun showPermissionDialog() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.usage_permission_title)
-            .setMessage(R.string.usage_permission_desc)
-            .setPositiveButton(R.string.permission_grant) { _, _ ->
-                try {
-                    usageStatsResultLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                } catch (e: Exception) {
-                    Log.e("SettingsActivity", "Error opening usage stats settings", e)
-                }
-            }
-            .setNegativeButton(R.string.permission_exit) { _, _ -> finish() }
-            .setCancelable(false)
-            .show()
     }
 
     private fun initializeApp(savedInstanceState: Bundle?) {
@@ -131,7 +77,16 @@ class SettingsActivity : AppCompatActivity() {
     fun updatePreview() {
         try {
             val repository = DayRepository(this)
-            val progress = repository.calculateProgress()
+            val status = repository.getDayStatus()
+            val checkpointEngine = CheckpointEngine(this)
+            val markers = checkpointEngine.getWidgetMarkers()
+            val display = WidgetDisplayFormatter.format(
+                this,
+                status,
+                checkpointEngine.getNextVisibleOccurrence(),
+                markers.size,
+                prefs.widgetType == 1 || (prefs.widgetType == 2 && prefs.barSize == 2)
+            )
             val previewContainer = findViewById<FrameLayout>(R.id.preview_container) ?: return
 
             val layoutId = getLayoutId(prefs.widgetType, prefs.barSize)
@@ -166,10 +121,11 @@ class SettingsActivity : AppCompatActivity() {
             if (prefs.widgetType == 0 || prefs.widgetType == 2) {
                 widgetView.findViewById<ImageView>(R.id.progress_bar_image)?.setImageBitmap(
                     WidgetStyleHelper.createProgressBitmap(
-                        progress = progress,
+                        progress = status.progress,
                         filledStartColor = prefs.progressColor,
                         filledEndColor = prefs.progressGradientEndColor,
                         unfilledColor = prefs.progressUnfilledColor,
+                        markers = markers,
                         heightDp = getBarHeightDp(prefs.widgetType, prefs.barSize)
                     )
                 )
@@ -177,12 +133,22 @@ class SettingsActivity : AppCompatActivity() {
 
             if (prefs.widgetType == 1 || prefs.widgetType == 2) {
                 widgetView.findViewById<TextView>(R.id.progress_text)?.apply {
-                    text = buildProgressText(progress)
+                    text = buildProgressText(display.primary)
                     setTextColor(prefs.textColor)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, getProgressTextSizeSp(prefs.widgetType, prefs.barSize))
+                    setTextSize(
+                        TypedValue.COMPLEX_UNIT_SP,
+                        getProgressTextSizeSp(prefs.widgetType, prefs.barSize, display.primary.length)
+                    )
                     typeface = resolveTypeface(prefs.fontFamily)
                 }
             }
+
+            widgetView.findViewById<TextView>(R.id.next_checkpoint_text)?.apply {
+                text = display.nextCheckpoint.orEmpty()
+                visibility = if (display.nextCheckpoint == null) View.GONE else View.VISIBLE
+                setTextColor(prefs.textColor)
+            }
+            widgetView.findViewById<View>(R.id.widget_root)?.contentDescription = display.contentDescription
 
             previewContainer.addView(widgetView)
             applyAppColors()
@@ -236,9 +202,9 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.preview_title)?.setTextColor(onSurfaceColor)
         findViewById<TextView>(R.id.preview_subtitle)?.setTextColor(ColorUtils.setAlphaComponent(onSurfaceColor, 220))
 
-        window.statusBarColor = ColorUtils.blendARGB(midColor, 0xFF000000.toInt(), 0.2f)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            window.navigationBarColor = ColorUtils.blendARGB(midColor, 0xFF000000.toInt(), 0.1f)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = ColorUtils.calculateLuminance(midColor) > 0.5
+            isAppearanceLightNavigationBars = ColorUtils.calculateLuminance(surfaceColor) > 0.5
         }
     }
 
@@ -302,7 +268,8 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun getProgressTextSizeSp(widgetType: Int, barSize: Int): Float {
+    private fun getProgressTextSizeSp(widgetType: Int, barSize: Int, textLength: Int): Float {
+        if (textLength > 8) return if (widgetType == 1) 16f else 11f
         return when (widgetType) {
             1 -> when (barSize) {
                 0 -> 20f
@@ -310,7 +277,7 @@ class SettingsActivity : AppCompatActivity() {
                 else -> 23f
             }
             else -> when (barSize) {
-                0 -> 10f
+                0 -> 11f
                 2 -> 14f
                 else -> 12f
             }
@@ -321,8 +288,7 @@ class SettingsActivity : AppCompatActivity() {
         return (dp * resources.displayMetrics.density).toInt().coerceAtLeast(1)
     }
 
-    private fun buildProgressText(progress: Int): CharSequence {
-        val text = getString(R.string.progress_percent, progress)
+    private fun buildProgressText(text: String): CharSequence {
         if (prefs.fontFamily == "default") {
             return text
         }

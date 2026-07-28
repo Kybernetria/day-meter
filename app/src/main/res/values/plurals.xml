@@ -3,4 +3,16 @@
         <item quantity="one">%1$d minute of usage to start the day</item>
         <item quantity="other">%1$d minutes of usage to start the day</item>
     </plurals>
+    <plurals name="duration_hours">
+        <item quantity="one">%1$d hour</item>
+        <item quantity="other">%1$d hours</item>
+    </plurals>
+    <plurals name="duration_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="widget_checkpoint_markers">
+        <item quantity="one">%1$d checkpoint marker</item>
+        <item quantity="other">%1$d checkpoint markers</item>
+    </plurals>
 </resources>

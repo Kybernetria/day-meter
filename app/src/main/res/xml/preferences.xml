@@ -76,6 +76,11 @@
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/section_time">
+        <Preference
+            app:key="usage_access_status"
+            app:title="@string/usage_access_setting_title"
+            app:summary="@string/usage_access_setting_summary" />
+
         <androidx.preference.SeekBarPreference
             app:defaultValue="5"
             app:key="usage_threshold"
@@ -94,12 +99,42 @@
         <Preference
             app:key="manual_start_time"
             app:title="@string/label_manual_start"
-            app:summary="Set start time manually for today" />
+            app:summary="@string/manual_start_not_set" />
+
+        <Preference
+            app:key="start_day_now"
+            app:title="@string/start_day_now"
+            app:summary="@string/start_day_now_summary" />
+
+        <Preference
+            app:key="clear_manual_start"
+            app:title="@string/clear_manual_start"
+            app:summary="@string/clear_manual_start_summary" />
+
+        <Preference
+            app:key="use_automatic_start"
+            app:title="@string/use_automatic_start"
+            app:summary="@string/use_automatic_start_summary" />
             
         <SwitchPreferenceCompat
             app:defaultValue="false"
             app:key="is_manual_locked"
             app:title="@string/label_lock_manual" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="checkpoint_category"
+        app:title="@string/section_checkpoints">
+
+        <Preference
+            app:key="notification_status"
+            app:title="@string/notification_status_title" />
+
+        <Preference
+            app:key="add_checkpoint"
+            app:title="@string/add_checkpoint"
+            app:summary="@string/add_checkpoint_summary"
+            app:icon="@android:drawable/ic_input_add" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Widget Behavior">
@@ -110,13 +145,6 @@
             app:entryValues="@array/bar_size_values"
             app:defaultValue="1"
             app:summary="@string/bar_size_summary" />
-
-        <ListPreference
-            app:key="update_frequency"
-            app:title="@string/label_update_frequency"
-            app:entries="@array/update_frequency_entries"
-            app:entryValues="@array/update_frequency_values"
-            app:defaultValue="5" />
 
         <Preference
             app:key="force_update"

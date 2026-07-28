@@ -1,6 +1,5 @@
 plugins {
     id 'com.android.application'
-    id 'com.google.devtools.ksp'
 }
 
 def releaseSigningValue = { String name ->
@@ -18,17 +17,17 @@ def releaseSigning = [
 def releaseSigningConfigured = releaseSigning.values().every { it }
 
 android {
-    namespace 'com.example.dayprogress'
-    compileSdk 36
+    namespace = 'com.example.dayprogress'
+    compileSdk = 36
 
     defaultConfig {
-        applicationId "com.example.dayprogress"
-        minSdk 23
-        targetSdk 36
-        versionCode 33
-        versionName "1.0.33"
+        applicationId = "com.example.dayprogress"
+        minSdk = 23
+        targetSdk = 36
+        versionCode = 34
+        versionName = "1.0.34"
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -47,16 +46,16 @@ android {
             if (releaseSigningConfigured) {
                 signingConfig signingConfigs.release
             }
-            minifyEnabled false
+            minifyEnabled = false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
-        viewBinding true
+        viewBinding = true
     }
 }
 
@@ -85,11 +84,6 @@ dependencies {
     implementation 'com.google.android.material:material:1.14.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
     implementation 'androidx.preference:preference-ktx:1.2.1'
-    implementation 'androidx.work:work-runtime-ktx:2.11.2'
-
-    implementation 'androidx.room:room-runtime:2.8.4'
-    implementation 'androidx.room:room-ktx:2.8.4'
-    ksp 'androidx.room:room-compiler:2.8.4'
 
     implementation "com.github.skydoves:colorpickerview:2.4.0"
 

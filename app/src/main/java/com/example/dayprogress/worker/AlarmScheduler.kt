@@ -2,127 +2,104 @@ package com.example.dayprogress.worker
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.SystemClock
 import android.util.Log
-import com.example.dayprogress.data.AppPreferences
 import com.example.dayprogress.data.DayRepository
+import com.example.dayprogress.reminder.ReminderScheduler
 import com.example.dayprogress.widget.DayProgressWidgetProvider
+import java.util.Calendar
+import kotlin.math.ceil
 
 class WidgetUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        Log.d("WidgetUpdateReceiver", "Alarm fired! Updating widgets...")
+        if (intent.action != AlarmScheduler.ACTION_WIDGET_REFRESH) return
         DayProgressWidgetProvider.updateAllWidgets(context)
-        // Reschedule for next interval
-        AlarmScheduler.scheduleNextUpdate(context)
+        ReminderScheduler.reschedule(context)
+        AlarmScheduler.scheduleWidgetUpdates(context)
     }
 }
 
 object AlarmScheduler {
+    const val ACTION_WIDGET_REFRESH = "com.example.dayprogress.ACTION_WIDGET_REFRESH"
     private const val UPDATE_REQUEST_CODE = 1001
     private const val TAG = "AlarmScheduler"
-    
+    private const val MIN_BOUNDARY_DELAY_MILLIS = 1_000L
+    private const val MIN_REFRESH_MILLIS = 60_000L
+    private const val START_DETECTION_POLL_MILLIS = 5 * 60_000L
+
     fun scheduleWidgetUpdates(context: Context) {
         cancelWidgetUpdates(context)
-        WorkManagerHelper.cancelWidgetUpdates(context)
-        scheduleNextUpdate(context)
-    }
-    
-    fun canScheduleExactAlarms(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            try {
-                alarmManager.canScheduleExactAlarms()
-            } catch (e: Exception) {
-                Log.w(TAG, "Cannot check exact alarm permission", e)
-                false
-            }
-        } else {
-            true
-        }
-    }
-    
-    fun scheduleNextUpdate(context: Context) {
+        if (!hasWidgets(context)) return
+
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intervalMinutes = getNextUpdateIntervalMinutes(context)
-        val intervalMillis = intervalMinutes * 60 * 1000L
-        
-        val intent = Intent(context, WidgetUpdateReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            UPDATE_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        val triggerAtMillis = SystemClock.elapsedRealtime() + intervalMillis
-        
+        val delayMillis = getNextUpdateDelayMillis(context).coerceAtLeast(MIN_BOUNDARY_DELAY_MILLIS)
+        val triggerAtMillis = SystemClock.elapsedRealtime() + delayMillis
         try {
-            if (canScheduleExactAlarms(context)) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    triggerAtMillis,
-                    pendingIntent
-                )
-                WorkManagerHelper.cancelWidgetUpdates(context)
-                Log.d(TAG, "Scheduled exact alarm (Doze-compatible) in $intervalMinutes mins")
-            } else {
-                alarmManager.set(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    triggerAtMillis,
-                    pendingIntent
-                )
-                Log.d(TAG, "Scheduled inexact alarm in $intervalMinutes mins")
-                WorkManagerHelper.scheduleWidgetUpdate(context, intervalMinutes.toInt())
-            }
+            // Widget refreshes are passive: they do not wake a sleeping device.
+            alarmManager.set(AlarmManager.ELAPSED_REALTIME, triggerAtMillis, updatePendingIntent(context))
+            Log.d(TAG, "Scheduled passive widget refresh in ${delayMillis / 60_000L} min")
         } catch (e: Exception) {
-            Log.e(TAG, "Error scheduling alarm", e)
-            // Fallback to inexact
-            alarmManager.set(
-                AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                triggerAtMillis,
-                pendingIntent
-            )
+            Log.e(TAG, "Unable to schedule widget refresh", e)
         }
     }
-    
+
     fun cancelWidgetUpdates(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, WidgetUpdateReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
+        alarmManager.cancel(updatePendingIntent(context))
+    }
+
+    fun hasWidgets(context: Context): Boolean {
+        val manager = AppWidgetManager.getInstance(context)
+        val component = ComponentName(context, DayProgressWidgetProvider::class.java)
+        return manager.getAppWidgetIds(component).isNotEmpty()
+    }
+
+    private fun getNextUpdateDelayMillis(context: Context): Long {
+        val repository = DayRepository(context)
+        repository.checkAndResetDay()
+        val now = System.currentTimeMillis()
+        val window = repository.getCurrentDayWindow(now)
+        val start = repository.getEffectiveStartTime(now)
+
+        if (now < window.ignoreBeforeMillis) {
+            return window.ignoreBeforeMillis - now
+        }
+        if (start == -1L && now < window.dayEndMillis) {
+            return START_DETECTION_POLL_MILLIS
+        }
+        if (start > now) {
+            return start - now
+        }
+        if (start != -1L && now in start until window.dayEndMillis) {
+            val total = window.dayEndMillis - start
+            val elapsed = now - start
+            val currentPercent = ((elapsed.toDouble() / total.toDouble()) * 100.0).toInt().coerceIn(0, 99)
+            val nextBoundary = start + ceil(total * ((currentPercent + 1) / 100.0)).toLong()
+            return (nextBoundary - now).coerceAtLeast(MIN_REFRESH_MILLIS)
+        }
+
+        val tomorrow = Calendar.getInstance().apply {
+            timeInMillis = now
+            add(Calendar.DAY_OF_MONTH, 1)
+        }.timeInMillis
+        val nextWindow = repository.getCurrentDayWindow(tomorrow)
+        return (nextWindow.ignoreBeforeMillis - now).coerceAtLeast(START_DETECTION_POLL_MILLIS)
+    }
+
+    private fun updatePendingIntent(context: Context): PendingIntent {
+        val intent = Intent(context, WidgetUpdateReceiver::class.java).apply {
+            action = ACTION_WIDGET_REFRESH
+        }
+        return PendingIntent.getBroadcast(
             context,
             UPDATE_REQUEST_CODE,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        alarmManager.cancel(pendingIntent)
-        WorkManagerHelper.cancelWidgetUpdates(context)
-    }
-
-    private fun getNextUpdateIntervalMinutes(context: Context): Long {
-        val prefs = AppPreferences(context)
-        val repository = DayRepository(context)
-        val now = System.currentTimeMillis()
-        val window = repository.getCurrentDayWindow(now)
-        val startTime = repository.getEffectiveStartTime(now)
-        val hasStarted = startTime != -1L
-        val shouldPollForStart = !hasStarted && now >= window.ignoreBeforeMillis && now < window.dayEndMillis
-
-        val shouldFastRefreshJustAfterStart = if (hasStarted) {
-            val elapsed = (now - startTime).coerceAtLeast(0L)
-            val total = window.dayEndMillis - startTime
-            total > 0 && elapsed * 100 < total
-        } else {
-            false
-        }
-
-        return if (shouldPollForStart || shouldFastRefreshJustAfterStart) {
-            1L
-        } else {
-            prefs.updateFrequency.toLong().coerceAtLeast(1L)
-        }
     }
 }

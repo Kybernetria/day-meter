@@ -8,7 +8,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitXY"
-        android:contentDescription="@string/widget_background_desc" />
+        android:importantForAccessibility="no" />
 
     <FrameLayout
         android:id="@+id/widget_root"
@@ -29,7 +29,7 @@
             android:layout_marginEnd="1dp"
             android:layout_marginBottom="1dp"
             android:scaleType="fitXY"
-            android:contentDescription="@string/accessibility_progress_bar" />
+            android:importantForAccessibility="no" />
 
         <TextView
             android:id="@+id/progress_text"
@@ -47,7 +47,19 @@
             android:text="@string/placeholder_progress"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
-            android:textStyle="bold"
-            android:contentDescription="@string/accessibility_progress_text" />
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/next_checkpoint_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxWidth="280dp"
+            android:singleLine="true"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </FrameLayout>
 </FrameLayout>

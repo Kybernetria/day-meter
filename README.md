@@ -3,17 +3,20 @@
 A small Android widget app that tracks how much of your configured day has passed.
 
 ## What it does
-- Detects your day start automatically from device usage
-- Supports manual start overrides
-- Handles day end times that go past midnight
-- Shows progress as a bar, text, or both
-- Lets you customize colors, borders, text, and update frequency
-- Supports solid or two-color gradient progress fills
+- Detects your day start automatically from on-device usage, or works entirely with manual starts
+- Handles day end times that go past midnight and daylight-saving transitions
+- Shows progress, time remaining, and clear waiting/completed states
+- Supports bar, text, and combined widgets with customizable colors, borders, fonts, and gradients
+- Adds arbitrary daily checkpoints at a clock time or percentage of the day
+- Shows checkpoint markers on the progress bar and sends gentle or silent reminders
+- Supports Done, Snooze 10 min, and Skip today notification actions
+- Uses battery-friendly passive widget refreshes rather than frequent exact wake-up alarms
 
 ## Notes
-- Usage Access permission is required for automatic day-start detection
-- Exact alarm permission helps with more frequent widget refreshes
-- The widget can be opened into settings by double-tapping it
+- Usage Access is optional and is only used for automatic day-start detection
+- Android 13 and newer ask for notification permission when an enabled checkpoint is saved
+- Checkpoint reminders are best-effort and can be delayed by Android battery restrictions
+- Tap the widget once to open settings
 
 ## Build
 ```bash
@@ -25,7 +28,7 @@ APK output:
 
 ## Releases
 
-Pushing a tag matching the Android version (for example, `v1.0.33`) runs the
+Pushing a tag matching the Android version (for example, `v1.0.34`) runs the
 release workflow. It builds an APK and Android App Bundle, signs both with the
 release key, publishes them as a GitHub Release, and creates a GitHub artifact
 attestation for each release file.
@@ -50,7 +53,7 @@ provided. Debug builds remain unsigned by the release key.
 Anyone can verify a downloaded release asset's provenance with GitHub CLI:
 
 ```bash
-gh attestation verify day-meter-v1.0.33.apk --repo OWNER/REPOSITORY
+gh attestation verify day-meter-v1.0.34.apk --repo OWNER/REPOSITORY
 ```
 
 GitHub's **Verified** badge on commits and tags is separate from Android APK

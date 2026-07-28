@@ -47,6 +47,7 @@ object WidgetStyleHelper {
         filledStartColor: Int,
         filledEndColor: Int,
         unfilledColor: Int,
+        markers: List<WidgetCheckpointMarker> = emptyList(),
         cornerRadiusDp: Float = 2f,
         widthDp: Int = 240,
         heightDp: Int = 12
@@ -62,7 +63,7 @@ object WidgetStyleHelper {
         val contentBottom = (height.toFloat() - verticalInset).coerceAtLeast(contentTop + 1f)
         val contentWidth = (contentRight - contentLeft).coerceAtLeast(1f)
         val contentHeight = (contentBottom - contentTop).coerceAtLeast(1f)
-        val radius = contentHeight / 2f
+        val radius = minOf(contentHeight / 2f, cornerRadiusDp * density)
         val clampedProgress = progress.coerceIn(0, 100)
         val progressWidth = contentWidth * (clampedProgress / 100f)
 
@@ -91,6 +92,31 @@ object WidgetStyleHelper {
             if (progressWidth > 0f) {
                 val progressRect = RectF(contentLeft, contentTop, contentLeft + progressWidth, contentBottom)
                 canvas.drawRoundRect(progressRect, radius, radius, progressPaint)
+            }
+
+            markers.forEach { marker ->
+                val markerColor = when (marker.status) {
+                    CheckpointStatus.DONE -> 0xFF69DB7C.toInt()
+                    CheckpointStatus.NOTIFIED,
+                    CheckpointStatus.SNOOZED -> 0xFFFFD166.toInt()
+                    CheckpointStatus.SKIPPED,
+                    CheckpointStatus.MISSED -> return@forEach
+                    CheckpointStatus.SCHEDULED,
+                    null -> 0xFFFFFFFF.toInt()
+                }
+                val markerX = contentLeft + contentWidth * (marker.percent.coerceIn(0f, 100f) / 100f)
+                val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xAA000000.toInt()
+                    strokeWidth = (3f * density).coerceAtLeast(2f)
+                    strokeCap = Paint.Cap.ROUND
+                }
+                val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = markerColor
+                    strokeWidth = (1.5f * density).coerceAtLeast(1f)
+                    strokeCap = Paint.Cap.ROUND
+                }
+                canvas.drawLine(markerX, contentTop, markerX, contentBottom, outlinePaint)
+                canvas.drawLine(markerX, contentTop, markerX, contentBottom, markerPaint)
             }
         }
     }

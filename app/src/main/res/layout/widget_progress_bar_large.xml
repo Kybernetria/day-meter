@@ -8,7 +8,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitXY"
-        android:contentDescription="@string/widget_background_desc" />
+        android:importantForAccessibility="no" />
 
     <RelativeLayout
         android:id="@+id/widget_root"
@@ -29,6 +29,6 @@
             android:layout_marginEnd="1dp"
             android:layout_marginBottom="1dp"
             android:scaleType="fitXY"
-            android:contentDescription="@string/accessibility_progress_bar" />
+            android:importantForAccessibility="no" />
     </RelativeLayout>
 </FrameLayout>

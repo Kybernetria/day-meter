@@ -18,16 +18,6 @@
     <string name="label_manual_start">Manual Start Time</string>
     <string name="label_lock_manual">Lock Manual Start Time</string>
     <string name="label_bar_size">Bar Size</string>
-    <string name="label_update_frequency">Update Frequency</string>
-    
-    <!-- Permissions -->
-    <string name="usage_permission_title">Usage Access Required</string>
-    <string name="usage_permission_desc">This app needs Usage Access permission to detect when your day starts based on device activity.\n\nYour privacy is protected - no app-specific data is collected.</string>
-    <string name="permission_grant">Grant Permission</string>
-    <string name="permission_exit">Exit</string>
-    <string name="alarm_permission_title">Alarm Permission Required</string>
-    <string name="alarm_permission_message">This widget needs permission to schedule exact alarms for frequent updates.</string>
-    <string name="alarm_permission_skip">Skip</string>
 
     <!-- Reset Dialog -->
     <string name="reset_title">Reset Settings</string>
@@ -49,18 +39,7 @@
     <string name="reset_success">Reset to defaults</string>
     <string name="widgets_updated_manually">Widgets updated manually</string>
 
-    <!-- Widget Background -->
-    <string name="widget_background_desc">Widget background with optional border</string>
-
-    <!-- Accessibility -->
-    <string name="accessibility_progress_text">Day progress percentage</string>
-    <string name="accessibility_progress_bar">Day progress bar</string>
-
     <!-- Buttons & Dialogs -->
-    <string name="precise_updates_title">Precise Updates</string>
-    <string name="precise_updates_message">To update the widget every 1–10 minutes, the app needs permission to schedule exact alarms. Otherwise, updates may be delayed by up to 15 minutes.</string>
-    <string name="settings_button">Settings</string>
-    <string name="later_button">Later</string>
     <string name="select_button">Select</string>
     <string name="cancel_button">Cancel</string>
 
@@ -74,4 +53,74 @@
     <string name="refresh_widget_now">Refresh Widget Now</string>
     <string name="refresh_widget_now_summary">Force an immediate widget refresh</string>
     <string name="bar_size_summary">Small, medium, or large bar thickness. The launcher may still need manual vertical resize.</string>
+
+    <!-- Day status and time remaining -->
+    <string name="widget_progress_time_left">%1$d%% · %2$s left</string>
+    <string name="widget_starts_in">Starts in %1$s</string>
+    <string name="widget_before_window">Before day window</string>
+    <string name="widget_usage_access_needed">Usage access needed</string>
+    <string name="widget_waiting_for_start">Waiting for start</string>
+    <string name="widget_day_complete">Day complete</string>
+    <string name="widget_no_start">No start detected</string>
+    <string name="widget_next_checkpoint">Next: %1$s · %2$s</string>
+    <string name="duration_hours_minutes">%1$dh %2$dm</string>
+
+    <!-- Manual and automatic start actions -->
+    <string name="usage_access_setting_title">Automatic Start Detection</string>
+    <string name="usage_access_setting_summary">Check or grant Usage Access</string>
+    <string name="usage_access_granted">Usage Access granted. Automatic detection is available.</string>
+    <string name="usage_access_not_granted">Usage Access is off. Manual start and checkpoints still work.</string>
+    <string name="start_day_now">Start Day Now</string>
+    <string name="start_day_now_summary">Use the current time as today’s start</string>
+    <string name="clear_manual_start">Clear Manual Start</string>
+    <string name="clear_manual_start_summary">Remove today’s or repeating manual start</string>
+    <string name="use_automatic_start">Use Automatic Start</string>
+    <string name="use_automatic_start_summary">Clear manual settings and detect the next start from device usage</string>
+    <string name="manual_start_cleared">Manual start cleared</string>
+    <string name="automatic_start_enabled">Automatic start detection enabled</string>
+    <string name="day_started_now">Day started now</string>
+
+    <!-- Checkpoints -->
+    <string name="section_checkpoints">Gentle Checkpoints</string>
+    <string name="add_checkpoint">Add Checkpoint</string>
+    <string name="add_checkpoint_summary">Choose any clock time or percentage of your day</string>
+    <string name="notification_status_title">Checkpoint Notifications</string>
+    <string name="notification_status_ready">Notifications are ready</string>
+    <string name="notification_status_blocked">Notifications are blocked. Tap to open notification settings.</string>
+    <string name="checkpoint_new_title">New Checkpoint</string>
+    <string name="checkpoint_edit_title">Edit Checkpoint</string>
+    <string name="checkpoint_label_hint">Optional label, e.g. Take a break</string>
+    <string name="checkpoint_clock_time">Clock time</string>
+    <string name="checkpoint_day_percentage">Day percentage</string>
+    <string name="checkpoint_default_time">12:00</string>
+    <string name="checkpoint_percent_value_default">50% of day</string>
+    <string name="checkpoint_percent_value">%1$d%% of day</string>
+    <string name="checkpoint_every_day">Every day</string>
+    <string name="checkpoint_repeat_days_title">Repeat on notification days</string>
+    <string name="checkpoint_notification_style">Notification style</string>
+    <string name="checkpoint_show_marker">Show marker on widget bar</string>
+    <string name="checkpoint_enabled">Checkpoint enabled</string>
+    <string name="checkpoint_save">Save</string>
+    <string name="checkpoint_delete">Delete</string>
+    <string name="checkpoint_delete_title">Delete checkpoint?</string>
+    <string name="checkpoint_delete_message">This also removes its pending notification and widget marker.</string>
+    <string name="checkpoint_saved">Checkpoint saved</string>
+    <string name="checkpoint_deleted">Checkpoint deleted</string>
+    <string name="checkpoint_limit_reached">You can create up to 50 checkpoints.</string>
+    <string name="checkpoint_no_days">Select at least one day</string>
+    <string name="checkpoint_summary_clock">At %1$s · %2$s · %3$s</string>
+    <string name="checkpoint_summary_percent">At %1$d%% · %2$s · %3$s</string>
+    <string name="checkpoint_gentle">Gentle</string>
+    <string name="checkpoint_silent">Silent</string>
+    <string name="checkpoint_disabled_suffix"> · Disabled</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_gentle">Gentle checkpoints</string>
+    <string name="notification_channel_gentle_description">Day checkpoint reminders without vibration</string>
+    <string name="notification_channel_silent">Silent checkpoints</string>
+    <string name="notification_channel_silent_description">Day checkpoint reminders with no sound or vibration</string>
+    <string name="notification_checkpoint_content">Day %1$d%% complete · scheduled for %2$s</string>
+    <string name="checkpoint_action_done">Done</string>
+    <string name="checkpoint_action_snooze">Snooze 10 min</string>
+    <string name="checkpoint_action_skip">Skip today</string>
 </resources>

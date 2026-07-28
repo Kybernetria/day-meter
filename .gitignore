@@ -7,8 +7,9 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# IDE
+# IDE / local coding agents
 .idea/
+.pi/
 *.iml
 .directory
 

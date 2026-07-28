@@ -31,7 +31,7 @@ internal object UsageEventAnalyzer {
         nowMillis: Long,
         thresholdMillis: Long,
         excludedPackages: Set<String>,
-        events: List<Event>
+        events: Iterable<Event>
     ): Result {
         if (nowMillis <= queryStartMillis) {
             return Result(null, 0L)
