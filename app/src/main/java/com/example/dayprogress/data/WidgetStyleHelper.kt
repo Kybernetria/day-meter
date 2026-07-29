@@ -9,6 +9,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import androidx.core.graphics.createBitmap
+import kotlin.math.roundToInt
 
 object WidgetStyleHelper {
 
@@ -22,8 +23,8 @@ object WidgetStyleHelper {
         heightDp: Int = 100
     ): Bitmap {
         val density = Resources.getSystem().displayMetrics.density
-        val width = (widthDp * density).toInt().coerceAtLeast(1)
-        val height = (heightDp * density).toInt().coerceAtLeast(1)
+        val width = (widthDp * density).toInt().coerceIn(1, MAX_RASTER_WIDTH_PX)
+        val height = (heightDp * density).toInt().coerceIn(1, MAX_RASTER_HEIGHT_PX)
 
         val shape = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
@@ -53,8 +54,8 @@ object WidgetStyleHelper {
         heightDp: Int = 12
     ): Bitmap {
         val density = Resources.getSystem().displayMetrics.density
-        val width = (widthDp * density).toInt().coerceAtLeast(1)
-        val height = (heightDp * density).toInt().coerceAtLeast(1)
+        val width = (widthDp * density).toInt().coerceIn(1, MAX_RASTER_WIDTH_PX)
+        val height = (heightDp * density).toInt().coerceIn(1, MAX_PROGRESS_HEIGHT_PX)
         val horizontalInset = (2f * density).coerceAtLeast(1f)
         val verticalInset = (1f * density).coerceAtLeast(1f)
         val contentLeft = horizontalInset
@@ -94,30 +95,40 @@ object WidgetStyleHelper {
                 canvas.drawRoundRect(progressRect, radius, radius, progressPaint)
             }
 
-            markers.forEach { marker ->
-                val markerColor = when (marker.status) {
-                    CheckpointStatus.DONE -> 0xFF69DB7C.toInt()
-                    CheckpointStatus.NOTIFIED,
-                    CheckpointStatus.SNOOZED -> 0xFFFFD166.toInt()
-                    CheckpointStatus.SKIPPED,
-                    CheckpointStatus.MISSED -> return@forEach
-                    CheckpointStatus.SCHEDULED,
-                    null -> 0xFFFFFFFF.toInt()
-                }
-                val markerX = contentLeft + contentWidth * (marker.percent.coerceIn(0f, 100f) / 100f)
-                val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = 0xAA000000.toInt()
-                    strokeWidth = (3f * density).coerceAtLeast(2f)
-                    strokeCap = Paint.Cap.ROUND
-                }
-                val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = markerColor
-                    strokeWidth = (1.5f * density).coerceAtLeast(1f)
-                    strokeCap = Paint.Cap.ROUND
-                }
-                canvas.drawLine(markerX, contentTop, markerX, contentBottom, outlinePaint)
-                canvas.drawLine(markerX, contentTop, markerX, contentBottom, markerPaint)
+            val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xAA000000.toInt()
+                strokeWidth = (3f * density).coerceAtLeast(2f)
+                strokeCap = Paint.Cap.ROUND
             }
+            val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                strokeWidth = (1.5f * density).coerceAtLeast(1f)
+                strokeCap = Paint.Cap.ROUND
+            }
+            markers
+                .filter { it.status !in setOf(CheckpointStatus.SKIPPED, CheckpointStatus.MISSED) }
+                .groupBy { (contentLeft + contentWidth * (it.percent.coerceIn(0f, 100f) / 100f)).roundToInt() }
+                .forEach { (markerPixel, coincidentMarkers) ->
+                    val marker = coincidentMarkers.maxByOrNull { markerPriority(it.status) } ?: return@forEach
+                    markerPaint.color = when (marker.status) {
+                        CheckpointStatus.NOTIFIED, CheckpointStatus.SNOOZED -> 0xFFFFD166.toInt()
+                        CheckpointStatus.DONE -> 0xFF69DB7C.toInt()
+                        else -> 0xFFFFFFFF.toInt()
+                    }
+                    val markerX = markerPixel.toFloat()
+                    canvas.drawLine(markerX, contentTop, markerX, contentBottom, outlinePaint)
+                    canvas.drawLine(markerX, contentTop, markerX, contentBottom, markerPaint)
+                }
         }
     }
+
+    private fun markerPriority(status: CheckpointStatus?): Int = when (status) {
+        CheckpointStatus.NOTIFIED, CheckpointStatus.SNOOZED -> 4
+        CheckpointStatus.DONE -> 3
+        CheckpointStatus.SCHEDULED -> 2
+        else -> 1
+    }
+
+    private const val MAX_RASTER_WIDTH_PX = 800
+    private const val MAX_RASTER_HEIGHT_PX = 320
+    private const val MAX_PROGRESS_HEIGHT_PX = 96
 }

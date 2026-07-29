@@ -7,6 +7,6 @@
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget_progress_bar"
     android:previewImage="@mipmap/ic_launcher"
+    android:previewLayout="@layout/widget_picker_preview"
     android:resizeMode="horizontal|vertical"
-    android:widgetCategory="home_screen">
-</appwidget-provider>
+    android:widgetCategory="home_screen" />

@@ -133,7 +133,7 @@ class CheckpointEngine(private val context: Context) {
             .forEach { occurrence ->
                 val scheduleAt = when {
                     occurrence.dueAtMillis > nowMillis -> occurrence.dueAtMillis
-                    nowMillis - occurrence.dueAtMillis <= LATE_GRACE_MILLIS -> nowMillis + 1_000L
+                    isWithinLateGrace(nowMillis, occurrence.dueAtMillis) -> nowMillis + 1_000L
                     else -> return@forEach
                 }
                 candidates += ScheduledCandidate(scheduleAt, occurrence)
@@ -167,11 +167,7 @@ class CheckpointEngine(private val context: Context) {
             .forEach { state ->
                 checkpoints.firstOrNull { it.id == state.checkpointId }?.let { checkpoint ->
                     val occurrence = CheckpointOccurrence(checkpoint, state.occurrenceDayId, state.snoozeAtMillis)
-                    if (state.status == CheckpointStatus.SNOOZED || nowMillis - state.snoozeAtMillis <= LATE_GRACE_MILLIS) {
-                        due += occurrence
-                    } else {
-                        missed += occurrence
-                    }
+                    if (isWithinLateGrace(nowMillis, state.snoozeAtMillis)) due += occurrence else missed += occurrence
                 }
             }
 
@@ -179,7 +175,7 @@ class CheckpointEngine(private val context: Context) {
             if (states[occurrence.key] != null || occurrence.dueAtMillis > nowMillis + DUE_EARLY_TOLERANCE_MILLIS) {
                 return@forEach
             }
-            if (nowMillis - occurrence.dueAtMillis <= LATE_GRACE_MILLIS) {
+            if (isWithinLateGrace(nowMillis, occurrence.dueAtMillis)) {
                 due += occurrence
             } else {
                 missed += occurrence
@@ -209,18 +205,17 @@ class CheckpointEngine(private val context: Context) {
             }
             fixedDayOffsets.forEach { offset ->
                 fixed.forEach { checkpoint ->
-                    val dueCalendar = (baseDate.clone() as Calendar).apply {
-                        add(Calendar.DAY_OF_MONTH, offset)
-                        set(Calendar.HOUR_OF_DAY, checkpoint.triggerValue / 60)
-                        set(Calendar.MINUTE, checkpoint.triggerValue % 60)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }
+                    val dueAt = DayWindowCalculator.atClockMillis(
+                        baseDate.timeInMillis,
+                        checkpoint.triggerValue,
+                        offset
+                    )
+                    val dueCalendar = Calendar.getInstance().apply { timeInMillis = dueAt }
                     if (checkpoint.appliesOn(dueCalendar.get(Calendar.DAY_OF_WEEK))) {
                         occurrences += CheckpointOccurrence(
                             checkpoint = checkpoint,
-                            occurrenceDayId = formatDayId(dueCalendar.timeInMillis),
-                            dueAtMillis = dueCalendar.timeInMillis
+                            occurrenceDayId = formatDayId(dueAt),
+                            dueAtMillis = dueAt
                         )
                     }
                 }
@@ -263,17 +258,13 @@ class CheckpointEngine(private val context: Context) {
             return window.ignoreBeforeMillis
         }
 
-        val ignoreBefore = repository.getPreferences().ignoreBefore
         return (0..2).asSequence().map { dayOffset ->
-            Calendar.getInstance().apply {
+            val candidateDay = Calendar.getInstance().apply {
                 timeInMillis = nowMillis
                 add(Calendar.DAY_OF_MONTH, dayOffset)
-                set(Calendar.HOUR_OF_DAY, ignoreBefore / 60)
-                set(Calendar.MINUTE, ignoreBefore % 60)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
             }.timeInMillis
-        }.firstOrNull { it > nowMillis + 1_000L }
+            repository.getCurrentDayWindow(candidateDay).ignoreBeforeMillis
+        }.distinct().firstOrNull { it > nowMillis + 1_000L }
     }
 
     private fun formatDayId(timeMillis: Long): String = DayIdFormatter.format(timeMillis)
@@ -282,6 +273,9 @@ class CheckpointEngine(private val context: Context) {
         const val LATE_GRACE_MILLIS = 60 * 60 * 1000L
         private const val DUE_EARLY_TOLERANCE_MILLIS = 30_000L
         private const val DETECTION_POLL_MILLIS = 5 * 60 * 1000L
+
+        fun isWithinLateGrace(nowMillis: Long, dueAtMillis: Long): Boolean =
+            nowMillis - dueAtMillis <= LATE_GRACE_MILLIS
 
         fun percentageDueTime(startMillis: Long, endMillis: Long, percentage: Int): Long {
             require(percentage in 0..100)

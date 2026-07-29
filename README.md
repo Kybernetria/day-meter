@@ -28,7 +28,7 @@ APK output:
 
 ## Releases
 
-Pushing a tag matching the Android version (for example, `v1.0.34`) runs the
+Pushing a tag matching the Android version (for example, `v1.0.35`) runs the
 release workflow. It builds an APK and Android App Bundle, signs both with the
 release key, publishes them as a GitHub Release, and creates a GitHub artifact
 attestation for each release file.
@@ -53,7 +53,7 @@ provided. Debug builds remain unsigned by the release key.
 Anyone can verify a downloaded release asset's provenance with GitHub CLI:
 
 ```bash
-gh attestation verify day-meter-v1.0.34.apk --repo OWNER/REPOSITORY
+gh attestation verify day-meter-v1.0.35.apk --repo OWNER/REPOSITORY
 ```
 
 GitHub's **Verified** badge on commits and tags is separate from Android APK

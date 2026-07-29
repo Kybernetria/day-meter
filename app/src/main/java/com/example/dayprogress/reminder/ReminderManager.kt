@@ -11,11 +11,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
+import android.os.SystemClock
+import android.text.format.DateFormat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.example.dayprogress.R
+import com.example.dayprogress.data.Checkpoint
 import com.example.dayprogress.data.CheckpointEngine
 import com.example.dayprogress.data.CheckpointNotificationMode
 import com.example.dayprogress.data.CheckpointOccurrence
@@ -25,33 +28,35 @@ import com.example.dayprogress.data.CheckpointStore
 import com.example.dayprogress.data.DayRepository
 import com.example.dayprogress.ui.SettingsActivity
 import com.example.dayprogress.widget.DayProgressWidgetProvider
-import java.text.DateFormat
+import com.example.dayprogress.worker.runAsync
 import java.util.Date
+
+object ReminderTransitions {
+    private val lock = Any()
+
+    fun <T> run(block: () -> T): T = synchronized(lock, block)
+}
 
 object ReminderScheduler {
     private const val REQUEST_CODE = 2201
 
-    fun reschedule(context: Context, forceRecompute: Boolean = false) {
+    fun reschedule(context: Context, forceRecompute: Boolean = false) = ReminderTransitions.run {
         ReminderNotifier.createChannels(context)
-        cancel(context)
+        cancelLocked(context)
         val store = CheckpointStore(context)
         if (forceRecompute) store.clearScheduledStates()
-        if (!store.hasEnabledCheckpoints() || !ReminderNotifier.notificationsAllowed(context)) return
+        if (!ReminderNotifier.notificationsAllowed(context)) return@run
 
-        val schedule = CheckpointEngine(context).getNextSchedule() ?: return
-        schedule.occurrences.forEach { occurrence ->
-            val state = store.getState(occurrence.checkpoint.id, occurrence.occurrenceDayId)
-            if (state == null) {
-                store.putState(
-                    CheckpointState(
-                        checkpointId = occurrence.checkpoint.id,
-                        occurrenceDayId = occurrence.occurrenceDayId,
-                        status = CheckpointStatus.SCHEDULED,
-                        snoozeAtMillis = occurrence.dueAtMillis
-                    )
-                )
-            }
-        }
+        val schedule = CheckpointEngine(context).getNextSchedule() ?: return@run
+        val states = store.getStates()
+        store.putStates(schedule.occurrences.mapNotNull { occurrence ->
+            if (states[occurrence.key] != null) null else CheckpointState(
+                checkpointId = occurrence.checkpoint.id,
+                occurrenceDayId = occurrence.occurrenceDayId,
+                status = CheckpointStatus.SCHEDULED,
+                snoozeAtMillis = occurrence.dueAtMillis
+            )
+        })
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pendingIntent = alarmPendingIntent(context)
         val triggerAt = schedule.triggerAtMillis.coerceAtLeast(System.currentTimeMillis() + 500L)
@@ -63,13 +68,11 @@ object ReminderScheduler {
         }
     }
 
-    fun cancel(context: Context) {
+    fun cancel(context: Context) = ReminderTransitions.run { cancelLocked(context) }
+
+    private fun cancelLocked(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(alarmPendingIntent(context))
-    }
-
-    fun hasReminderConsumer(context: Context): Boolean {
-        return CheckpointStore(context).hasEnabledCheckpoints() && ReminderNotifier.notificationsAllowed(context)
     }
 
     private fun alarmPendingIntent(context: Context): PendingIntent {
@@ -88,7 +91,8 @@ object ReminderScheduler {
 class ReminderAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_REMINDER_ALARM) return
-        ReminderCoordinator.processDue(context)
+        val appContext = context.applicationContext
+        runAsync("ReminderAlarmReceiver", critical = true) { ReminderCoordinator.processDue(appContext) }
     }
 
     companion object {
@@ -100,25 +104,55 @@ class CheckpointActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val checkpointId = intent.getStringExtra(EXTRA_CHECKPOINT_ID) ?: return
         val occurrenceDayId = intent.getStringExtra(EXTRA_OCCURRENCE_DAY_ID) ?: return
+        val deliveryToken = intent.getLongExtra(EXTRA_DELIVERY_TOKEN, -1L).takeIf { it >= 0L } ?: return
+        val appContext = context.applicationContext
+        runAsync("CheckpointActionReceiver", critical = true) {
+            val changed = ReminderTransitions.run {
+                processAction(appContext, intent, checkpointId, occurrenceDayId, deliveryToken)
+            }
+            if (changed) {
+                ReminderScheduler.reschedule(appContext)
+                DayProgressWidgetProvider.refreshWidgetsInBackground(appContext)
+            }
+        }
+    }
+
+    private fun processAction(
+        context: Context,
+        intent: Intent,
+        checkpointId: String,
+        occurrenceDayId: String,
+        deliveryToken: Long
+    ): Boolean {
         val store = CheckpointStore(context)
-        val checkpoint = store.getCheckpoints().firstOrNull { it.id == checkpointId } ?: return
-        val currentState = store.getState(checkpointId, occurrenceDayId) ?: return
-        if (currentState.status != CheckpointStatus.NOTIFIED) return
+        if (store.getCheckpoints().none { it.id == checkpointId }) return false
+        val currentState = store.getState(checkpointId, occurrenceDayId) ?: return false
+        if (currentState.status != CheckpointStatus.NOTIFIED || currentState.notifiedAtMillis != deliveryToken) {
+            return false
+        }
 
         val newState = when (intent.action) {
-            ACTION_DONE -> currentState.copy(status = CheckpointStatus.DONE, snoozeAtMillis = -1L)
-            ACTION_SKIP -> currentState.copy(status = CheckpointStatus.SKIPPED, snoozeAtMillis = -1L)
+            ACTION_DONE -> currentState.copy(
+                status = CheckpointStatus.DONE,
+                snoozeAtMillis = -1L,
+                snoozeAtElapsedRealtime = -1L
+            )
+            ACTION_SKIP -> currentState.copy(
+                status = CheckpointStatus.SKIPPED,
+                snoozeAtMillis = -1L,
+                snoozeAtElapsedRealtime = -1L
+            )
             ACTION_SNOOZE -> currentState.copy(
                 status = CheckpointStatus.SNOOZED,
-                snoozeAtMillis = System.currentTimeMillis() + SNOOZE_MILLIS
+                snoozeAtMillis = System.currentTimeMillis() + SNOOZE_MILLIS,
+                snoozeAtElapsedRealtime = SystemClock.elapsedRealtime() + SNOOZE_MILLIS
             )
-            else -> return
+            else -> return false
         }
 
         store.putState(newState)
         ReminderNotifier.cancel(context, checkpointId, occurrenceDayId)
-        DayProgressWidgetProvider.updateAllWidgets(context)
-        ReminderScheduler.reschedule(context)
+        return true
     }
 
     companion object {
@@ -127,12 +161,19 @@ class CheckpointActionReceiver : BroadcastReceiver() {
         const val ACTION_SKIP = "com.example.dayprogress.ACTION_CHECKPOINT_SKIP"
         const val EXTRA_CHECKPOINT_ID = "checkpoint_id"
         const val EXTRA_OCCURRENCE_DAY_ID = "occurrence_day_id"
+        const val EXTRA_DELIVERY_TOKEN = "delivery_token"
         private const val SNOOZE_MILLIS = 10 * 60 * 1000L
     }
 }
 
 private object ReminderCoordinator {
     fun processDue(context: Context) {
+        ReminderTransitions.run { processDueLocked(context) }
+        ReminderScheduler.reschedule(context)
+        DayProgressWidgetProvider.refreshWidgetsInBackground(context)
+    }
+
+    private fun processDueLocked(context: Context) {
         val repository = DayRepository(context)
         repository.detectDayStartIfNeeded()
         if (!ReminderNotifier.notificationsAllowed(context)) {
@@ -142,34 +183,37 @@ private object ReminderCoordinator {
 
         val store = CheckpointStore(context)
         val result = CheckpointEngine(context).getDueCheckpoints()
-        result.missed.forEach { occurrence ->
-            store.putState(
-                CheckpointState(
-                    checkpointId = occurrence.checkpoint.id,
-                    occurrenceDayId = occurrence.occurrenceDayId,
-                    status = CheckpointStatus.MISSED
-                )
+        val enabledCheckpoints = store.getCheckpoints().filter(Checkpoint::enabled).associateBy(Checkpoint::id)
+        store.putStates(result.missed.map { occurrence ->
+            CheckpointState(
+                checkpointId = occurrence.checkpoint.id,
+                occurrenceDayId = occurrence.occurrenceDayId,
+                status = CheckpointStatus.MISSED
             )
-        }
-        result.due.take(MAX_NOTIFICATIONS_PER_PASS).forEach { occurrence ->
-            val delivered = ReminderNotifier.show(context, occurrence)
-            store.putState(
-                CheckpointState(
-                    checkpointId = occurrence.checkpoint.id,
-                    occurrenceDayId = occurrence.occurrenceDayId,
-                    status = if (delivered) CheckpointStatus.NOTIFIED else CheckpointStatus.MISSED,
-                    notifiedAtMillis = if (delivered) System.currentTimeMillis() else -1L
-                )
-            )
-        }
-        // Leave overflow occurrences scheduled. The next immediate pass will deliver
-        // them without dropping user-created reminders or creating a notification burst.
+        })
+        result.due.forEach { occurrence ->
+            val checkpoint = enabledCheckpoints[occurrence.checkpoint.id] ?: return@forEach
+            val current = store.getState(checkpoint.id, occurrence.occurrenceDayId)
+            if (current != null && current.status !in setOf(CheckpointStatus.SCHEDULED, CheckpointStatus.SNOOZED)) {
+                return@forEach
+            }
 
-        DayProgressWidgetProvider.updateAllWidgets(context)
-        ReminderScheduler.reschedule(context)
+            val deliveryToken = System.currentTimeMillis()
+            val claimed = CheckpointState(
+                checkpointId = checkpoint.id,
+                occurrenceDayId = occurrence.occurrenceDayId,
+                status = CheckpointStatus.NOTIFIED,
+                notifiedAtMillis = deliveryToken
+            )
+            store.putState(claimed)
+            val delivered = runCatching {
+                ReminderNotifier.show(context, occurrence.copy(checkpoint = checkpoint), deliveryToken)
+            }.getOrDefault(false)
+            if (!delivered && store.getState(checkpoint.id, occurrence.occurrenceDayId) == claimed) {
+                store.putState(claimed.copy(status = CheckpointStatus.MISSED, notifiedAtMillis = -1L))
+            }
+        }
     }
-
-    private const val MAX_NOTIFICATIONS_PER_PASS = 3
 }
 
 object ReminderNotifier {
@@ -209,36 +253,53 @@ object ReminderNotifier {
         return NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
-    fun show(context: Context, occurrence: CheckpointOccurrence): Boolean {
+    fun notificationsReady(context: Context): Boolean {
         if (!notificationsAllowed(context)) return false
         createChannels(context)
-        val checkpoint = occurrence.checkpoint
-        val progress = DayRepository(context).calculateProgress()
-        val dueTime = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(occurrence.dueAtMillis))
-        val content = context.getString(R.string.notification_checkpoint_content, progress, dueTime)
-        val channel = if (checkpoint.notificationMode == CheckpointNotificationMode.SILENT) {
-            SILENT_CHANNEL
-        } else {
-            GENTLE_CHANNEL
-        }
+        return CheckpointStore(context).getCheckpoints()
+            .filter { it.enabled }
+            .all { channelAllowed(context, it.notificationMode) }
+    }
 
-        val notification = NotificationCompat.Builder(context, channel)
+    fun channelAllowed(context: Context, mode: CheckpointNotificationMode): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        return manager.getNotificationChannel(channelId(mode))?.importance != NotificationManager.IMPORTANCE_NONE
+    }
+
+    fun show(context: Context, occurrence: CheckpointOccurrence, deliveryToken: Long): Boolean {
+        if (!notificationsAllowed(context)) return false
+        createChannels(context)
+        if (!channelAllowed(context, occurrence.checkpoint.notificationMode)) return false
+        val checkpoint = occurrence.checkpoint
+        val dueTime = DateFormat.getTimeFormat(context).format(Date(occurrence.dueAtMillis))
+        val content = context.getString(R.string.notification_checkpoint_content, dueTime)
+        val channel = channelId(checkpoint.notificationMode)
+
+        val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification_day_meter)
             .setColor(Color.rgb(64, 224, 208))
             .setContentTitle(checkpoint.displayLabel())
             .setContentText(content)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setGroup("day_checkpoints")
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(openAppIntent(context, occurrence))
-            .addAction(0, context.getString(R.string.checkpoint_action_done), actionIntent(context, occurrence, CheckpointActionReceiver.ACTION_DONE))
-            .addAction(0, context.getString(R.string.checkpoint_action_snooze), actionIntent(context, occurrence, CheckpointActionReceiver.ACTION_SNOOZE))
-            .addAction(0, context.getString(R.string.checkpoint_action_skip), actionIntent(context, occurrence, CheckpointActionReceiver.ACTION_SKIP))
-            .build()
+            .addAction(0, context.getString(R.string.checkpoint_action_done), actionIntent(context, occurrence, CheckpointActionReceiver.ACTION_DONE, deliveryToken))
+            .addAction(0, context.getString(R.string.checkpoint_action_snooze), actionIntent(context, occurrence, CheckpointActionReceiver.ACTION_SNOOZE, deliveryToken))
+            .addAction(0, context.getString(R.string.checkpoint_action_skip), actionIntent(context, occurrence, CheckpointActionReceiver.ACTION_SKIP, deliveryToken))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            if (checkpoint.notificationMode == CheckpointNotificationMode.GENTLE) {
+                builder.setPriority(NotificationCompat.PRIORITY_DEFAULT).setDefaults(NotificationCompat.DEFAULT_SOUND)
+            } else {
+                builder.setPriority(NotificationCompat.PRIORITY_LOW).setSilent(true)
+            }
+        }
 
         try {
-            NotificationManagerCompat.from(context).notify(notificationTag(occurrence), notificationId(occurrence), notification)
+            NotificationManagerCompat.from(context).notify(notificationTag(occurrence), notificationId(occurrence), builder.build())
             return true
         } catch (_: SecurityException) {
             // Permission can be revoked between the explicit check and notify().
@@ -266,20 +327,29 @@ object ReminderNotifier {
         )
     }
 
-    private fun actionIntent(context: Context, occurrence: CheckpointOccurrence, action: String): PendingIntent {
+    private fun actionIntent(
+        context: Context,
+        occurrence: CheckpointOccurrence,
+        action: String,
+        deliveryToken: Long
+    ): PendingIntent {
         val intent = Intent(context, CheckpointActionReceiver::class.java).apply {
             this.action = action
-            data = "daymeter://checkpoint/${occurrence.checkpoint.id}/${occurrence.occurrenceDayId}/${action.substringAfterLast('.')}".toUri()
+            data = "daymeter://checkpoint/${occurrence.checkpoint.id}/${occurrence.occurrenceDayId}/${action.substringAfterLast('.')}/$deliveryToken".toUri()
             putExtra(CheckpointActionReceiver.EXTRA_CHECKPOINT_ID, occurrence.checkpoint.id)
             putExtra(CheckpointActionReceiver.EXTRA_OCCURRENCE_DAY_ID, occurrence.occurrenceDayId)
+            putExtra(CheckpointActionReceiver.EXTRA_DELIVERY_TOKEN, deliveryToken)
         }
         return PendingIntent.getBroadcast(
             context,
-            (occurrence.key + action).hashCode() and Int.MAX_VALUE,
+            (occurrence.key + action + deliveryToken).hashCode() and Int.MAX_VALUE,
             intent,
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
     }
+
+    private fun channelId(mode: CheckpointNotificationMode): String =
+        if (mode == CheckpointNotificationMode.SILENT) SILENT_CHANNEL else GENTLE_CHANNEL
 
     private fun notificationTag(occurrence: CheckpointOccurrence) = notificationTag(occurrence.checkpoint.id, occurrence.occurrenceDayId)
     private fun notificationTag(checkpointId: String, occurrenceDayId: String) = "checkpoint:$checkpointId:$occurrenceDayId"

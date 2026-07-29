@@ -17,18 +17,29 @@ import android.widget.RemoteViews
 import androidx.core.net.toUri
 import com.example.dayprogress.R
 import com.example.dayprogress.data.CheckpointEngine
+import com.example.dayprogress.data.CheckpointOccurrence
 import com.example.dayprogress.data.DayRepository
+import com.example.dayprogress.data.WidgetCheckpointMarker
 import com.example.dayprogress.data.WidgetStyleHelper
 import com.example.dayprogress.reminder.ReminderScheduler
 import com.example.dayprogress.ui.SettingsActivity
 import com.example.dayprogress.worker.AlarmScheduler
+import com.example.dayprogress.worker.runAsync
+import com.example.dayprogress.worker.runInBackground
 
 class DayProgressWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        DayRepository(context).detectDayStartIfNeeded()
-        appWidgetIds.forEach { updateAppWidget(context, appWidgetManager, it) }
-        AlarmScheduler.scheduleWidgetUpdates(context)
-        ReminderScheduler.reschedule(context)
+        val appContext = context.applicationContext
+        runAsync(TAG) {
+            DayRepository(appContext).detectDayStartIfNeeded()
+            val validIds = installedWidgetIds(appContext, appWidgetManager)
+            val snapshot = createSnapshot(appContext, System.currentTimeMillis())
+            appWidgetIds.filter(validIds::contains).forEach {
+                renderAppWidget(appContext, appWidgetManager, it, snapshot)
+            }
+            AlarmScheduler.scheduleWidgetUpdates(appContext)
+            ReminderScheduler.reschedule(appContext)
+        }
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -38,39 +49,75 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
         newOptions: Bundle
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
-        updateAppWidget(context, appWidgetManager, appWidgetId)
+        val appContext = context.applicationContext
+        runAsync(TAG) { updateAppWidget(appContext, appWidgetManager, appWidgetId) }
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        updateAllWidgets(context)
+        val appContext = context.applicationContext
+        runAsync(TAG) {
+            updateAllWidgets(appContext)
+            AlarmScheduler.scheduleWidgetUpdates(appContext)
+            ReminderScheduler.reschedule(appContext)
+        }
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        if (!AlarmScheduler.hasWidgets(context)) {
-            AlarmScheduler.cancelWidgetUpdates(context)
-        }
+        if (!AlarmScheduler.hasWidgets(context)) AlarmScheduler.cancelWidgetUpdates(context)
     }
 
     companion object {
         private const val TAG = "DayProgressWidget"
 
+        private data class WidgetPreferences(
+            val widgetType: Int,
+            val barSize: Int,
+            val theme: Int,
+            val backgroundColor: Int,
+            val borderColor: Int,
+            val borderThickness: Int,
+            val borderEnabled: Boolean,
+            val progressColor: Int,
+            val progressGradientEndColor: Int,
+            val progressUnfilledColor: Int,
+            val textColor: Int,
+            val fontFamily: String
+        )
+
+        private data class Snapshot(
+            val prefs: WidgetPreferences,
+            val status: DayRepository.DayStatus,
+            val markers: List<WidgetCheckpointMarker>,
+            val nextCheckpoint: CheckpointOccurrence?
+        )
+
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+            renderAppWidget(context, appWidgetManager, appWidgetId, createSnapshot(context, System.currentTimeMillis()))
+        }
+
+        private fun renderAppWidget(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int,
+            snapshot: Snapshot
+        ) {
             try {
-                val repository = DayRepository(context)
-                val prefs = repository.getPreferences()
-                val status = repository.getDayStatus()
-                val checkpointEngine = CheckpointEngine(context)
-                val markers = checkpointEngine.getWidgetMarkers()
-                val nextCheckpoint = checkpointEngine.getNextVisibleOccurrence()
-                val expandedText = prefs.widgetType == 1 || (prefs.widgetType == 2 && prefs.barSize == 2)
-                val display = WidgetDisplayFormatter.format(context, status, nextCheckpoint, markers.size, expandedText)
-                val layoutId = getLayoutId(prefs.widgetType, prefs.barSize)
-                val views = RemoteViews(context.packageName, layoutId)
+                val prefs = snapshot.prefs
                 val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
                 val widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200).coerceIn(100, 400)
-                val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 48).coerceIn(18, 160)
+                val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 48).coerceIn(48, 160)
+                val expandedText = widthDp >= 220 && (prefs.widgetType == 1 || heightDp >= 56 && prefs.barSize == 2)
+                val display = WidgetDisplayFormatter.format(
+                    context,
+                    snapshot.status,
+                    snapshot.nextCheckpoint,
+                    snapshot.markers,
+                    expandedText
+                )
+                val layoutId = getLayoutId(prefs.widgetType, prefs.barSize)
+                val views = RemoteViews(context.packageName, layoutId)
                 val backgroundColor = if (prefs.theme == 3) 0 else prefs.backgroundColor
 
                 views.setImageViewBitmap(
@@ -89,11 +136,11 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
                     views.setImageViewBitmap(
                         R.id.progress_bar_image,
                         WidgetStyleHelper.createProgressBitmap(
-                            progress = status.progress,
+                            progress = snapshot.status.progress,
                             filledStartColor = prefs.progressColor,
                             filledEndColor = prefs.progressGradientEndColor,
                             unfilledColor = prefs.progressUnfilledColor,
-                            markers = markers,
+                            markers = snapshot.markers,
                             widthDp = widthDp,
                             heightDp = getBarHeightDp(prefs.widgetType, prefs.barSize)
                         )
@@ -111,7 +158,7 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
                 }
 
                 if (prefs.widgetType == 2 && prefs.barSize == 2) {
-                    val nextText = display.nextCheckpoint
+                    val nextText = display.nextCheckpoint.takeIf { widthDp >= 220 && heightDp >= 64 }
                     views.setViewVisibility(R.id.next_checkpoint_text, if (nextText == null) View.GONE else View.VISIBLE)
                     views.setTextViewText(R.id.next_checkpoint_text, nextText.orEmpty())
                     views.setTextColor(R.id.next_checkpoint_text, prefs.textColor)
@@ -125,19 +172,51 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        fun refreshWidgetsInBackground(context: Context) {
+            val appContext = context.applicationContext
+            runInBackground(TAG) { updateAllWidgets(appContext) }
+        }
+
         fun updateAllWidgets(context: Context) {
             try {
                 DayRepository(context).detectDayStartIfNeeded()
                 val appWidgetManager = AppWidgetManager.getInstance(context)
-                val componentName = ComponentName(context, DayProgressWidgetProvider::class.java)
-                appWidgetManager.getAppWidgetIds(componentName).forEach {
-                    updateAppWidget(context, appWidgetManager, it)
+                val snapshot = createSnapshot(context, System.currentTimeMillis())
+                installedWidgetIds(context, appWidgetManager).forEach {
+                    renderAppWidget(context, appWidgetManager, it, snapshot)
                 }
-                AlarmScheduler.scheduleWidgetUpdates(context)
-                ReminderScheduler.reschedule(context)
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating all widgets", e)
             }
+        }
+
+        private fun createSnapshot(context: Context, nowMillis: Long): Snapshot {
+            val repository = DayRepository(context)
+            val source = repository.getPreferences()
+            val checkpointEngine = CheckpointEngine(context)
+            return Snapshot(
+                prefs = WidgetPreferences(
+                    widgetType = source.widgetType,
+                    barSize = source.barSize,
+                    theme = source.theme,
+                    backgroundColor = source.backgroundColor,
+                    borderColor = source.borderColor,
+                    borderThickness = source.borderThickness,
+                    borderEnabled = source.borderEnabled,
+                    progressColor = source.progressColor,
+                    progressGradientEndColor = source.progressGradientEndColor,
+                    progressUnfilledColor = source.progressUnfilledColor,
+                    textColor = source.textColor,
+                    fontFamily = source.fontFamily
+                ),
+                status = repository.getDayStatus(nowMillis),
+                markers = checkpointEngine.getWidgetMarkers(nowMillis),
+                nextCheckpoint = checkpointEngine.getNextVisibleOccurrence(nowMillis)
+            )
+        }
+
+        private fun installedWidgetIds(context: Context, manager: AppWidgetManager): Set<Int> {
+            return manager.getAppWidgetIds(ComponentName(context, DayProgressWidgetProvider::class.java)).toSet()
         }
 
         private fun openSettingsIntent(context: Context, appWidgetId: Int): PendingIntent {

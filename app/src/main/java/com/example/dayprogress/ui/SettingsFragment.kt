@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.format.DateFormat
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
@@ -39,13 +40,13 @@ import com.example.dayprogress.data.DayRepository
 import com.example.dayprogress.data.UsageDetector
 import com.example.dayprogress.reminder.ReminderNotifier
 import com.example.dayprogress.reminder.ReminderScheduler
+import com.example.dayprogress.reminder.ReminderTransitions
 import com.example.dayprogress.widget.DayProgressWidgetProvider
 import com.example.dayprogress.worker.AlarmScheduler
 import com.skydoves.colorpickerview.ColorPickerDialog
 import com.skydoves.colorpickerview.listeners.ColorEnvelopeListener
 import java.text.DateFormatSymbols
 import java.util.Calendar
-import java.util.Locale
 
 class SettingsFragment : PreferenceFragmentCompat() {
 
@@ -53,7 +54,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private lateinit var repository: DayRepository
     private lateinit var checkpointStore: CheckpointStore
 
-    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) Toast.makeText(context, R.string.notification_permission_denied, Toast.LENGTH_LONG).show()
         refreshPermissionState()
         updateEverything()
     }
@@ -154,7 +156,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 val threshold = newValue as Int
                 summary = resources.getQuantityString(R.plurals.usage_threshold_summary, threshold, threshold)
                 prefs.usageThreshold = threshold
-                updateEverything()
+                updateEverything(recomputeReminders = true)
                 true
             }
         }
@@ -199,9 +201,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 Toast.makeText(context, R.string.manual_time_invalid, Toast.LENGTH_LONG).show()
             } else {
                 prefs.manualStartTime = resolved
+                prefs.manualStartMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
                 prefs.manualStartDayId = repository.getCurrentDayWindow().logicalDayId
+                prefs.isManualLocked = false
+                findPreference<SwitchPreferenceCompat>(AppPreferences.KEY_IS_MANUAL_LOCKED)?.isChecked = false
                 findPreference<Preference>(AppPreferences.KEY_MANUAL_START_TIME)?.let(::updateManualStartSummary)
-                updateEverything()
+                updateEverything(recomputeReminders = true)
                 Toast.makeText(context, R.string.day_started_now, Toast.LENGTH_SHORT).show()
             }
             true
@@ -214,9 +219,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         findPreference<Preference>("use_automatic_start")?.setOnPreferenceClickListener {
-            clearManualStart()
+            clearManualStart(update = false)
             prefs.detectedStartTime = -1L
-            updateEverything()
+            updateEverything(recomputeReminders = true)
             Toast.makeText(context, R.string.automatic_start_enabled, Toast.LENGTH_SHORT).show()
             true
         }
@@ -228,8 +233,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 false
             } else {
                 prefs.isManualLocked = locked
+                if (locked) {
+                    val start = Calendar.getInstance().apply { timeInMillis = prefs.manualStartTime }
+                    prefs.manualStartMinutes = start.get(Calendar.HOUR_OF_DAY) * 60 + start.get(Calendar.MINUTE)
+                }
                 findPreference<Preference>(AppPreferences.KEY_MANUAL_START_TIME)?.let { updateManualStartSummary(it) }
-                updateEverything()
+                updateEverything(recomputeReminders = true)
                 true
             }
         }
@@ -250,7 +259,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         // Actions
         findPreference<Preference>("force_update")?.setOnPreferenceClickListener {
-            DayProgressWidgetProvider.updateAllWidgets(requireContext())
+            DayProgressWidgetProvider.refreshWidgetsInBackground(requireContext())
             Toast.makeText(context, R.string.widgets_updated_manually, Toast.LENGTH_SHORT).show()
             true
         }
@@ -284,13 +293,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 }
 
                 prefs.manualStartTime = resolvedStartTime
+                prefs.manualStartMinutes = selectedMinutes
                 prefs.manualStartDayId = repository.getCurrentDayWindow().logicalDayId
                 updateManualStartSummary(pref)
-                updateEverything()
+                updateEverything(recomputeReminders = true)
             },
             initialCalendar.get(Calendar.HOUR_OF_DAY),
             initialCalendar.get(Calendar.MINUTE),
-            true
+            DateFormat.is24HourFormat(requireContext())
         ).show()
     }
 
@@ -356,7 +366,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 },
                 clockMinutes / 60,
                 clockMinutes % 60,
-                true
+                DateFormat.is24HourFormat(requireContext())
             ).show()
         }
         daysButton.setOnClickListener {
@@ -416,25 +426,32 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     showOnWidget = markerCheck.isChecked,
                     enabled = enabledCheck.isChecked
                 )
-                if (!checkpointStore.saveCheckpoint(checkpoint)) {
-                    Toast.makeText(context, R.string.checkpoint_limit_reached, Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
                 val invalidatesCurrentOccurrence = existing != null && (
                     existing.triggerType != checkpoint.triggerType ||
                         existing.triggerValue != checkpoint.triggerValue ||
                         existing.daysMask != checkpoint.daysMask ||
                         existing.enabled != checkpoint.enabled
                     )
-                if (invalidatesCurrentOccurrence) {
-                    checkpointStore.getStates().values
-                        .filter { it.checkpointId == checkpoint.id }
-                        .forEach { ReminderNotifier.cancel(requireContext(), it.checkpointId, it.occurrenceDayId) }
-                    checkpointStore.clearStatesForCheckpoint(checkpoint.id)
+                val saved = ReminderTransitions.run {
+                    if (!checkpointStore.saveCheckpoint(checkpoint)) {
+                        false
+                    } else {
+                        if (invalidatesCurrentOccurrence) {
+                            checkpointStore.getStates().values
+                                .filter { it.checkpointId == checkpoint.id }
+                                .forEach { ReminderNotifier.cancel(requireContext(), it.checkpointId, it.occurrenceDayId) }
+                            checkpointStore.clearStatesForCheckpoint(checkpoint.id)
+                        }
+                        true
+                    }
+                }
+                if (!saved) {
+                    Toast.makeText(context, R.string.checkpoint_limit_reached, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
                 }
                 dialog.dismiss()
                 rebuildCheckpointPreferences()
-                updateEverything()
+                updateEverything(recomputeReminders = true)
                 requestNotificationPermissionIfNeeded(checkpoint.enabled)
                 Toast.makeText(context, R.string.checkpoint_saved, Toast.LENGTH_SHORT).show()
             }
@@ -444,13 +461,15 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         .setTitle(R.string.checkpoint_delete_title)
                         .setMessage(R.string.checkpoint_delete_message)
                         .setPositiveButton(R.string.checkpoint_delete) { _, _ ->
-                            checkpointStore.getStates().values
-                                .filter { it.checkpointId == existing.id }
-                                .forEach { ReminderNotifier.cancel(requireContext(), it.checkpointId, it.occurrenceDayId) }
-                            checkpointStore.deleteCheckpoint(existing.id)
+                            ReminderTransitions.run {
+                                checkpointStore.getStates().values
+                                    .filter { it.checkpointId == existing.id }
+                                    .forEach { ReminderNotifier.cancel(requireContext(), it.checkpointId, it.occurrenceDayId) }
+                                checkpointStore.deleteCheckpoint(existing.id)
+                            }
                             dialog.dismiss()
                             rebuildCheckpointPreferences()
-                            updateEverything()
+                            updateEverything(recomputeReminders = true)
                             Toast.makeText(context, R.string.checkpoint_deleted, Toast.LENGTH_SHORT).show()
                         }
                         .setNegativeButton(R.string.cancel_button, null)
@@ -526,18 +545,19 @@ class SettingsFragment : PreferenceFragmentCompat() {
             if (UsageDetector.hasUsageStatsPermission(requireContext())) R.string.usage_access_granted else R.string.usage_access_not_granted
         )
         findPreference<Preference>("notification_status")?.summary = getString(
-            if (ReminderNotifier.notificationsAllowed(requireContext())) R.string.notification_status_ready else R.string.notification_status_blocked
+            if (ReminderNotifier.notificationsReady(requireContext())) R.string.notification_status_ready else R.string.notification_status_blocked
         )
         findPreference<Preference>("clear_manual_start")?.isEnabled = prefs.manualStartTime != -1L
     }
 
-    private fun clearManualStart() {
+    private fun clearManualStart(update: Boolean = true) {
         prefs.manualStartTime = -1L
+        prefs.manualStartMinutes = -1
         prefs.manualStartDayId = null
         prefs.isManualLocked = false
         findPreference<SwitchPreferenceCompat>(AppPreferences.KEY_IS_MANUAL_LOCKED)?.isChecked = false
         findPreference<Preference>(AppPreferences.KEY_MANUAL_START_TIME)?.let(::updateManualStartSummary)
-        updateEverything()
+        if (update) updateEverything(recomputeReminders = true)
     }
 
     private fun setupColorPreference(key: String, title: String, setter: (Int) -> Unit) {
@@ -576,9 +596,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
             TimePickerDialog(requireContext(), { _, hourOfDay, minute ->
                 val totalMinutes = hourOfDay * 60 + minute
                 if (onTimeSelected(totalMinutes)) {
-                    updateEverything()
+                    updateEverything(recomputeReminders = true)
                 }
-            }, current / 60, current % 60, true).show()
+            }, current / 60, current % 60, DateFormat.is24HourFormat(requireContext())).show()
             true
         }
     }
@@ -601,7 +621,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         val calendar = Calendar.getInstance().apply { timeInMillis = prefs.manualStartTime }
-        val summary = String.format(Locale.getDefault(), "%02d:%02d", calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE))
+        val summary = DateFormat.getTimeFormat(requireContext()).format(calendar.time)
         pref.summary = if (prefs.isManualLocked) {
             getString(R.string.manual_start_summary_daily, summary)
         } else {
@@ -610,7 +630,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun formatClockSummary(totalMinutes: Int): String {
-        return String.format(Locale.getDefault(), "%02d:%02d", totalMinutes / 60, totalMinutes % 60)
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, totalMinutes / 60)
+            set(Calendar.MINUTE, totalMinutes % 60)
+        }
+        return DateFormat.getTimeFormat(requireContext()).format(calendar.time)
     }
 
     private fun getMenuTextColor(): Int {
@@ -660,31 +684,33 @@ class SettingsFragment : PreferenceFragmentCompat() {
             dayEnd = 22 * 60
             fontFamily = "default"
             barSize = 1
-            updateFrequency = 5
             detectedStartTime = -1L
             manualStartTime = -1L
+            manualStartMinutes = -1
             manualStartDayId = null
             isManualLocked = false
             lastResetDate = null
         }
 
-        checkpointStore.getStates().values.forEach {
-            ReminderNotifier.cancel(requireContext(), it.checkpointId, it.occurrenceDayId)
+        ReminderTransitions.run {
+            checkpointStore.getStates().values.forEach {
+                ReminderNotifier.cancel(requireContext(), it.checkpointId, it.occurrenceDayId)
+            }
+            checkpointStore.clearCheckpointData()
         }
-        checkpointStore.clearCheckpointData()
         preferenceScreen = null
         setPreferencesFromResource(R.xml.preferences, null)
         bindPreferences()
-        updateEverything()
+        updateEverything(recomputeReminders = true)
         Toast.makeText(context, R.string.reset_success, Toast.LENGTH_SHORT).show()
     }
 
-    private fun updateEverything() {
-        DayProgressWidgetProvider.updateAllWidgets(requireContext())
+    private fun updateEverything(recomputeReminders: Boolean = false) {
+        AlarmScheduler.scheduleWidgetUpdates(requireContext())
+        ReminderScheduler.reschedule(requireContext(), forceRecompute = recomputeReminders)
+        DayProgressWidgetProvider.refreshWidgetsInBackground(requireContext())
         (activity as? SettingsActivity)?.updatePreview()
         applyMenuStyling()
-        AlarmScheduler.scheduleWidgetUpdates(requireContext())
-        ReminderScheduler.reschedule(requireContext(), forceRecompute = true)
         refreshPermissionState()
     }
 

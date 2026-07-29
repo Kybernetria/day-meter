@@ -8,7 +8,8 @@
             app:entries="@array/widget_type_entries"
             app:entryValues="@array/widget_type_values"
             app:key="widget_type"
-            app:title="Display Mode" />
+            app:title="@string/display_mode"
+            app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/section_theme">
@@ -17,43 +18,44 @@
             app:entries="@array/theme_entries"
             app:entryValues="@array/theme_values"
             app:key="theme"
-            app:title="Base Theme" />
+            app:title="@string/base_theme"
+            app:useSimpleSummaryProvider="true" />
         
         <Preference
             app:key="progress_color"
             app:title="@string/progress_fill_color"
-            app:summary="Tap to change color and transparency" />
+            app:summary="@string/color_transparency_summary" />
 
         <Preference
             app:key="progress_gradient_end_color"
             app:title="@string/progress_gradient_end_color"
-            app:summary="Optional second color for the progress gradient" />
+            app:summary="@string/gradient_end_summary" />
 
         <Preference
             app:key="progress_unfilled_color"
             app:title="@string/progress_unfilled_color"
-            app:summary="Color of the uncompleted portion" />
+            app:summary="@string/unfilled_color_summary" />
 
         <Preference
             app:key="background_color"
             app:title="@string/background_color"
-            app:summary="Widget background color and transparency" />
+            app:summary="@string/background_color_summary" />
 
         <Preference
             app:key="text_color"
             app:title="@string/text_color"
-            app:summary="Percentage text color" />
+            app:summary="@string/text_color_summary" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Border Settings">
+    <PreferenceCategory app:title="@string/border_settings">
         <SwitchPreferenceCompat
             app:key="border_enabled"
-            app:title="Enable Border"
+            app:title="@string/enable_border"
             app:defaultValue="false" />
         
         <androidx.preference.SeekBarPreference
             app:key="border_thickness"
-            app:title="Border Thickness"
+            app:title="@string/border_thickness"
             app:min="1"
             android:max="10"
             app:defaultValue="2"
@@ -62,17 +64,18 @@
         <Preference
             app:key="border_color"
             app:title="@string/border_color"
-            app:summary="Tap to change color"
+            app:summary="@string/change_color_summary"
             app:dependency="border_enabled" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Font Settings">
+    <PreferenceCategory app:title="@string/font_settings">
         <ListPreference
             app:key="font_family"
-            app:title="Font Family"
+            app:title="@string/font_family"
             app:entries="@array/font_family_entries"
             app:entryValues="@array/font_family_values"
-            app:defaultValue="default" />
+            app:defaultValue="default"
+            app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/section_time">
@@ -137,14 +140,14 @@
             app:icon="@android:drawable/ic_input_add" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Widget Behavior">
+    <PreferenceCategory app:title="@string/widget_behavior">
         <ListPreference
             app:key="bar_size"
             app:title="@string/label_bar_size"
             app:entries="@array/bar_size_entries"
             app:entryValues="@array/bar_size_values"
             app:defaultValue="1"
-            app:summary="@string/bar_size_summary" />
+            app:useSimpleSummaryProvider="true" />
 
         <Preference
             app:key="force_update"
@@ -155,8 +158,8 @@
     <PreferenceCategory>
         <Preference
             app:key="reset_defaults"
-            app:title="Reset to Defaults"
-            app:summary="Reset all settings to default values"
+            app:title="@string/reset_defaults"
+            app:summary="@string/reset_defaults_summary"
             app:icon="@android:drawable/ic_menu_revert" />
     </PreferenceCategory>
 

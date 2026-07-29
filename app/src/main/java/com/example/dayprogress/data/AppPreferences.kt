@@ -25,14 +25,15 @@ class AppPreferences(context: Context) {
         const val KEY_USAGE_THRESHOLD = "usage_threshold"
         const val KEY_IGNORE_BEFORE = "ignore_before"
         const val KEY_DAY_END = "day_end"
-        const val KEY_UPDATE_FREQUENCY = "update_frequency"
         const val KEY_DETECTED_START_TIME = "detected_start_time"
         const val KEY_MANUAL_START_TIME = "manual_start_time"
+        const val KEY_MANUAL_START_MINUTES = "manual_start_minutes"
         const val KEY_MANUAL_START_DAY_ID = "manual_start_day_id"
         const val KEY_IS_MANUAL_LOCKED = "is_manual_locked"
         const val KEY_LAST_RESET_DATE = "last_reset_date"
         const val KEY_CHECKPOINTS = "checkpoints_v1"
         const val KEY_CHECKPOINT_STATES = "checkpoint_states_v1"
+        const val KEY_CHECKPOINT_SNOOZE_ELAPSED = "checkpoint_snooze_elapsed_v1"
     }
 
     private fun safeGetInt(key: String, default: Int, validRange: IntRange = Int.MIN_VALUE..Int.MAX_VALUE): Int {
@@ -167,10 +168,6 @@ class AppPreferences(context: Context) {
         get() = safeGetInt(KEY_DAY_END, 22 * 60, 0..1439)
         set(value) = prefs.edit { putInt(KEY_DAY_END, value) }
 
-    var updateFrequency: Int
-        get() = safeGetInt(KEY_UPDATE_FREQUENCY, 5, 1..60)
-        set(value) = prefs.edit { putString(KEY_UPDATE_FREQUENCY, value.toString()) }
-
     var detectedStartTime: Long
         get() = safeGetLong(KEY_DETECTED_START_TIME, -1L)
         set(value) = prefs.edit { putLong(KEY_DETECTED_START_TIME, value) }
@@ -178,6 +175,10 @@ class AppPreferences(context: Context) {
     var manualStartTime: Long
         get() = safeGetLong(KEY_MANUAL_START_TIME, -1L)
         set(value) = prefs.edit { putLong(KEY_MANUAL_START_TIME, value) }
+
+    var manualStartMinutes: Int
+        get() = safeGetInt(KEY_MANUAL_START_MINUTES, -1, -1..1439)
+        set(value) = prefs.edit { putInt(KEY_MANUAL_START_MINUTES, value) }
 
     var manualStartDayId: String?
         get() = safeGetString(KEY_MANUAL_START_DAY_ID)?.takeIf(DayIdFormatter::isValid)

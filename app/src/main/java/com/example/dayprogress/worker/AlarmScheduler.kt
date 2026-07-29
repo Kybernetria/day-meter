@@ -10,6 +10,7 @@ import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
 import com.example.dayprogress.data.DayRepository
+import com.example.dayprogress.data.UsageDetector
 import com.example.dayprogress.reminder.ReminderScheduler
 import com.example.dayprogress.widget.DayProgressWidgetProvider
 import java.util.Calendar
@@ -18,9 +19,12 @@ import kotlin.math.ceil
 class WidgetUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != AlarmScheduler.ACTION_WIDGET_REFRESH) return
-        DayProgressWidgetProvider.updateAllWidgets(context)
-        ReminderScheduler.reschedule(context)
-        AlarmScheduler.scheduleWidgetUpdates(context)
+        val appContext = context.applicationContext
+        runAsync("WidgetUpdateReceiver") {
+            DayProgressWidgetProvider.updateAllWidgets(appContext)
+            ReminderScheduler.reschedule(appContext)
+            AlarmScheduler.scheduleWidgetUpdates(appContext)
+        }
     }
 }
 
@@ -32,6 +36,7 @@ object AlarmScheduler {
     private const val MIN_REFRESH_MILLIS = 60_000L
     private const val START_DETECTION_POLL_MILLIS = 5 * 60_000L
 
+    @Synchronized
     fun scheduleWidgetUpdates(context: Context) {
         cancelWidgetUpdates(context)
         if (!hasWidgets(context)) return
@@ -48,6 +53,7 @@ object AlarmScheduler {
         }
     }
 
+    @Synchronized
     fun cancelWidgetUpdates(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(updatePendingIntent(context))
@@ -70,7 +76,11 @@ object AlarmScheduler {
             return window.ignoreBeforeMillis - now
         }
         if (start == -1L && now < window.dayEndMillis) {
-            return START_DETECTION_POLL_MILLIS
+            return if (UsageDetector.hasUsageStatsPermission(context)) {
+                START_DETECTION_POLL_MILLIS
+            } else {
+                window.dayEndMillis - now
+            }
         }
         if (start > now) {
             return start - now

@@ -51,7 +51,8 @@ data class CheckpointState(
     val occurrenceDayId: String,
     val status: CheckpointStatus,
     val notifiedAtMillis: Long = -1L,
-    val snoozeAtMillis: Long = -1L
+    val snoozeAtMillis: Long = -1L,
+    val snoozeAtElapsedRealtime: Long = -1L
 ) {
     val occurrenceKey: String get() = key(checkpointId, occurrenceDayId)
 
@@ -107,10 +108,17 @@ class CheckpointStore(context: Context) {
     fun hasEnabledCheckpoints(): Boolean = getCheckpoints().any { it.enabled }
 
     fun getStates(): Map<String, CheckpointState> = synchronized(LOCK) {
+        val elapsedSnoozes = getElapsedSnoozes()
         safeStringSet(AppPreferences.KEY_CHECKPOINT_STATES)
             .asSequence()
             .take(MAX_STATE_RECORDS + 1)
             .mapNotNull(::decodeState)
+            .map { state ->
+                state.copy(
+                    snoozeAtElapsedRealtime = elapsedSnoozes[state.occurrenceKey]
+                        ?: state.snoozeAtElapsedRealtime
+                )
+            }
             .distinctBy(CheckpointState::occurrenceKey)
             .take(MAX_STATE_RECORDS)
             .associateBy(CheckpointState::occurrenceKey)
@@ -120,10 +128,33 @@ class CheckpointStore(context: Context) {
         return getStates()[CheckpointState.key(checkpointId, occurrenceDayId)]
     }
 
-    fun putState(state: CheckpointState) = synchronized(LOCK) {
+    fun putState(state: CheckpointState) = putStates(listOf(state))
+
+    fun putStates(newStates: Collection<CheckpointState>) = synchronized(LOCK) {
+        if (newStates.isEmpty()) return@synchronized
         val states = getStates().toMutableMap()
-        states[state.occurrenceKey] = state
+        newStates.forEach { states[it.occurrenceKey] = it }
         writeStates(pruneStates(states.values))
+    }
+
+    fun adjustSnoozesAfterClockChange(nowWallMillis: Long, nowElapsedRealtime: Long) = synchronized(LOCK) {
+        val adjusted = getStates().values.map { state ->
+            if (state.status == CheckpointStatus.SNOOZED && state.snoozeAtElapsedRealtime >= 0L) {
+                val remaining = (state.snoozeAtElapsedRealtime - nowElapsedRealtime).coerceAtLeast(0L)
+                state.copy(snoozeAtMillis = nowWallMillis + remaining)
+            } else state
+        }
+        writeStates(adjusted)
+    }
+
+    fun rebaseSnoozesAfterBoot(nowWallMillis: Long, nowElapsedRealtime: Long) = synchronized(LOCK) {
+        val rebased = getStates().values.map { state ->
+            if (state.status == CheckpointStatus.SNOOZED) {
+                val remaining = (state.snoozeAtMillis - nowWallMillis).coerceAtLeast(0L)
+                state.copy(snoozeAtElapsedRealtime = nowElapsedRealtime + remaining)
+            } else state
+        }
+        writeStates(rebased)
     }
 
     fun removeState(checkpointId: String, occurrenceDayId: String) = synchronized(LOCK) {
@@ -144,6 +175,7 @@ class CheckpointStore(context: Context) {
         prefs.edit {
             remove(AppPreferences.KEY_CHECKPOINTS)
             remove(AppPreferences.KEY_CHECKPOINT_STATES)
+            remove(AppPreferences.KEY_CHECKPOINT_SNOOZE_ELAPSED)
         }
     }
 
@@ -161,7 +193,24 @@ class CheckpointStore(context: Context) {
     }
 
     private fun writeStates(states: Collection<CheckpointState>) {
-        prefs.edit { putStringSet(AppPreferences.KEY_CHECKPOINT_STATES, states.map(::encodeState).toSet()) }
+        prefs.edit {
+            putStringSet(AppPreferences.KEY_CHECKPOINT_STATES, states.map(::encodeState).toSet())
+            putStringSet(
+                AppPreferences.KEY_CHECKPOINT_SNOOZE_ELAPSED,
+                states.filter { it.status == CheckpointStatus.SNOOZED && it.snoozeAtElapsedRealtime >= 0L }
+                    .map { "${it.occurrenceKey}$SEPARATOR${it.snoozeAtElapsedRealtime}" }
+                    .toSet()
+            )
+        }
+    }
+
+    private fun getElapsedSnoozes(): Map<String, Long> {
+        return safeStringSet(AppPreferences.KEY_CHECKPOINT_SNOOZE_ELAPSED).mapNotNull { encoded ->
+            val separator = encoded.lastIndexOf(SEPARATOR)
+            if (separator <= 0) null else encoded.substring(separator + 1).toLongOrNull()?.let {
+                encoded.substring(0, separator) to it
+            }
+        }.toMap()
     }
 
     private fun pruneStates(states: Collection<CheckpointState>): Collection<CheckpointState> {
@@ -208,15 +257,16 @@ class CheckpointStore(context: Context) {
 
     private fun decodeState(encoded: String): CheckpointState? = runCatching {
         if (encoded.length > MAX_RECORD_LENGTH) return@runCatching null
-        val parts = encoded.split(SEPARATOR, limit = 6)
-        if (parts.size != 6 || parts[0] != FORMAT_VERSION) return@runCatching null
+        val parts = encoded.split(SEPARATOR, limit = 7)
+        if (parts.size !in 6..7 || parts[0] != FORMAT_VERSION) return@runCatching null
         UUID.fromString(parts[1])
         CheckpointState(
             checkpointId = parts[1],
             occurrenceDayId = parts[2].takeIf(DayIdFormatter::isValid) ?: return@runCatching null,
             status = CheckpointStatus.valueOf(parts[3]),
             notifiedAtMillis = parts[4].toLong(),
-            snoozeAtMillis = parts[5].toLong()
+            snoozeAtMillis = parts[5].toLong(),
+            snoozeAtElapsedRealtime = parts.getOrNull(6)?.toLong() ?: -1L
         )
     }.getOrNull()
 

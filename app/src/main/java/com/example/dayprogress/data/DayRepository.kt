@@ -33,8 +33,13 @@ class DayRepository(private val context: Context) {
 
     private val prefs = AppPreferences(context)
 
-
     fun getPreferences() = prefs
+
+    fun migrateLegacyManualStart() {
+        if (prefs.isManualLocked && prefs.manualStartTime >= 0L && prefs.manualStartMinutes == -1) {
+            prefs.manualStartMinutes = getMinutesOfDay(prefs.manualStartTime)
+        }
+    }
 
     fun getCurrentDayWindow(nowMillis: Long = System.currentTimeMillis()): DayWindow {
         val calculated = DayWindowCalculator.calculate(
@@ -76,7 +81,7 @@ class DayRepository(private val context: Context) {
             return detectedStart
         }
 
-        Log.w("DayRepository", "Clearing stale detected start time $detectedStart for ${window.logicalDayId}")
+        Log.w("DayRepository", "Clearing a stale detected start time")
         prefs.detectedStartTime = -1L
         return -1L
     }
@@ -90,7 +95,7 @@ class DayRepository(private val context: Context) {
     }
 
     fun resolveClockTimeInWindow(window: DayWindow, clockMinutes: Int): Long {
-        val dayOffset = if (window.crossesMidnight && clockMinutes < prefs.dayEnd) 1 else 0
+        val dayOffset = if (window.crossesMidnight && clockMinutes <= prefs.dayEnd) 1 else 0
         return DayWindowCalculator.atClockMillis(window.logicalDayStartMillis, clockMinutes, dayOffset)
     }
 
@@ -124,12 +129,17 @@ class DayRepository(private val context: Context) {
             prefs.detectedStartTime = -1L
 
             if (prefs.isManualLocked && prefs.manualStartTime != -1L) {
-                val clockMinutes = getMinutesOfDay(prefs.manualStartTime)
+                val clockMinutes = getLockedClockMinutes()
                 val shiftedManualStart = resolveClockMinutes(window, clockMinutes, nowMillis, allowFuture = true)
                 prefs.manualStartTime = shiftedManualStart ?: -1L
                 prefs.manualStartDayId = if (shiftedManualStart != null) window.logicalDayId else null
+                if (shiftedManualStart == null) {
+                    prefs.manualStartMinutes = -1
+                    prefs.isManualLocked = false
+                }
             } else {
                 prefs.manualStartTime = -1L
+                prefs.manualStartMinutes = -1
                 prefs.manualStartDayId = null
             }
 
@@ -146,7 +156,11 @@ class DayRepository(private val context: Context) {
             }
 
             val window = getCurrentDayWindow(nowMillis)
-            if (nowMillis < window.ignoreBeforeMillis || nowMillis >= window.dayEndMillis) {
+            if (
+                nowMillis < window.ignoreBeforeMillis ||
+                nowMillis >= window.dayEndMillis ||
+                !UsageDetector.hasUsageStatsPermission(context)
+            ) {
                 return false
             }
 
@@ -223,7 +237,7 @@ class DayRepository(private val context: Context) {
     }
 
     private fun alignLockedManualStart(window: DayWindow, nowMillis: Long): Long? {
-        val clockMinutes = getMinutesOfDay(prefs.manualStartTime)
+        val clockMinutes = getLockedClockMinutes()
         val alignedManualStart = resolveClockMinutes(window, clockMinutes, nowMillis, allowFuture = true) ?: return null
 
         if (prefs.manualStartTime != alignedManualStart || prefs.manualStartDayId != window.logicalDayId) {
@@ -242,7 +256,7 @@ class DayRepository(private val context: Context) {
     ): Long? {
         val candidate = resolveClockTimeInWindow(window, clockMinutes)
 
-        if (candidate > window.dayEndMillis) {
+        if (candidate >= window.dayEndMillis) {
             return null
         }
         if (!allowFuture && candidate > nowMillis) {
@@ -250,6 +264,12 @@ class DayRepository(private val context: Context) {
         }
 
         return candidate
+    }
+
+    private fun getLockedClockMinutes(): Int {
+        val configured = prefs.manualStartMinutes
+        if (configured in 0..1439) return configured
+        return getMinutesOfDay(prefs.manualStartTime).also { prefs.manualStartMinutes = it }
     }
 
     private fun getMinutesOfDay(timeMillis: Long): Int {

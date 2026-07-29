@@ -1,6 +1,7 @@
 package com.example.dayprogress.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Calendar
@@ -30,6 +31,26 @@ class DayWindowCalculatorTest {
     }
 
     @Test
+    fun springGapBoundariesRemainOrderedAndKeepNominalDuration() {
+        val now = localTime(2024, Calendar.MARCH, 10, 12, 0)
+        val window = DayWindowCalculator.calculate(now, 2 * 60 + 30, 3 * 60, newYork)
+        val ignore = Calendar.getInstance(newYork).apply { timeInMillis = window.ignoreBeforeMillis }
+        val end = Calendar.getInstance(newYork).apply { timeInMillis = window.dayEndMillis }
+
+        assertEquals(3 * 60, ignore.get(Calendar.HOUR_OF_DAY) * 60 + ignore.get(Calendar.MINUTE))
+        assertEquals(3 * 60 + 30, end.get(Calendar.HOUR_OF_DAY) * 60 + end.get(Calendar.MINUTE))
+        assertEquals(30 * 60_000L, window.dayEndMillis - window.ignoreBeforeMillis)
+    }
+
+    @Test
+    fun fallOverlapBoundaryAlwaysProducesAPositiveWindow() {
+        val now = localTime(2024, Calendar.NOVEMBER, 3, 12, 0)
+        val window = DayWindowCalculator.calculate(now, 90, 180, newYork)
+
+        assertTrue(window.dayEndMillis > window.ignoreBeforeMillis)
+    }
+
+    @Test
     fun crossMidnightWindowKeepsPreviousLogicalDayAfterMidnight() {
         val now = localTime(2024, Calendar.JUNE, 4, 1, 0)
         val window = DayWindowCalculator.calculate(now, 18 * 60, 2 * 60, newYork)
@@ -37,6 +58,26 @@ class DayWindowCalculatorTest {
 
         assertEquals(3, logicalDay.get(Calendar.DAY_OF_MONTH))
         assertTrue(now in window.ignoreBeforeMillis..window.dayEndMillis)
+    }
+
+    @Test
+    fun crossMidnightWindowIncludesExactEndButNotTheNextMillisecond() {
+        val end = localTime(2024, Calendar.JUNE, 4, 2, 0)
+        val atEnd = DayWindowCalculator.calculate(end, 18 * 60, 2 * 60, newYork)
+        val afterEnd = DayWindowCalculator.calculate(end + 1, 18 * 60, 2 * 60, newYork)
+        val atEndDay = Calendar.getInstance(newYork).apply { timeInMillis = atEnd.logicalDayStartMillis }
+        val afterEndDay = Calendar.getInstance(newYork).apply { timeInMillis = afterEnd.logicalDayStartMillis }
+
+        assertEquals(3, atEndDay.get(Calendar.DAY_OF_MONTH))
+        assertEquals(4, afterEndDay.get(Calendar.DAY_OF_MONTH))
+        assertEquals(end, atEnd.dayEndMillis)
+    }
+
+    @Test
+    fun crossMidnightClockAtEndResolvesOnFollowingDate() {
+        val logicalStart = localTime(2024, Calendar.JUNE, 3, 0, 0)
+        val resolved = DayWindowCalculator.atClockMillis(logicalStart, 2 * 60, 1, newYork)
+        assertEquals(localTime(2024, Calendar.JUNE, 4, 2, 0), resolved)
     }
 
     @Test
@@ -71,12 +112,21 @@ class DayWindowCalculatorTest {
             checkpointId = checkpointId,
             occurrenceDayId = "2024-06-04",
             status = CheckpointStatus.SCHEDULED,
-            snoozeAtMillis = dueAt
+            snoozeAtMillis = dueAt,
+            snoozeAtElapsedRealtime = 123_456L
         )
 
         assertEquals(CheckpointStatus.SCHEDULED, state.status)
         assertEquals(dueAt, state.snoozeAtMillis)
+        assertEquals(123_456L, state.snoozeAtElapsedRealtime)
         assertEquals("$checkpointId@2024-06-04", state.occurrenceKey)
+    }
+
+    @Test
+    fun lateAndSnoozedOccurrencesShareTheSameGraceLimit() {
+        val dueAt = 1_000L
+        assertTrue(CheckpointEngine.isWithinLateGrace(dueAt + CheckpointEngine.LATE_GRACE_MILLIS, dueAt))
+        assertFalse(CheckpointEngine.isWithinLateGrace(dueAt + CheckpointEngine.LATE_GRACE_MILLIS + 1, dueAt))
     }
 
     @Test

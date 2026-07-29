@@ -4,7 +4,8 @@ import android.content.Context
 import com.example.dayprogress.R
 import com.example.dayprogress.data.CheckpointOccurrence
 import com.example.dayprogress.data.DayRepository
-import java.text.DateFormat
+import com.example.dayprogress.data.WidgetCheckpointMarker
+import android.text.format.DateFormat
 import java.util.Date
 
 internal data class WidgetDisplayText(
@@ -18,7 +19,7 @@ internal object WidgetDisplayFormatter {
         context: Context,
         status: DayRepository.DayStatus,
         nextCheckpoint: CheckpointOccurrence?,
-        markerCount: Int,
+        markers: List<WidgetCheckpointMarker>,
         expanded: Boolean
     ): WidgetDisplayText {
         val primary = when (status.state) {
@@ -38,14 +39,18 @@ internal object WidgetDisplayFormatter {
             DayRepository.DayState.ENDED_WITHOUT_START -> context.getString(R.string.widget_no_start)
         }
         val next = nextCheckpoint?.let {
-            val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.dueAtMillis))
+            val time = DateFormat.getTimeFormat(context).format(Date(it.dueAtMillis))
             context.getString(R.string.widget_next_checkpoint, it.checkpoint.displayLabel(), time)
         }
         val description = buildString {
             append(primary)
             if (next != null) append(". ").append(next)
-            if (markerCount > 0) {
-                append(". ").append(context.resources.getQuantityString(R.plurals.widget_checkpoint_markers, markerCount, markerCount))
+            if (markers.isNotEmpty()) {
+                append(". ").append(
+                    context.resources.getQuantityString(R.plurals.widget_checkpoint_markers, markers.size, markers.size)
+                )
+                val labels = markers.map(WidgetCheckpointMarker::label).distinct().take(3).joinToString(", ")
+                if (labels.isNotBlank()) append(": ").append(labels)
             }
         }
         return WidgetDisplayText(primary, next, description)

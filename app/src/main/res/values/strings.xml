@@ -4,6 +4,7 @@
     
     <!-- Widget Labels -->
     <string name="placeholder_progress">0%</string>
+    <string name="widget_preview_progress">50%</string>
     <string name="progress_percent">%1$d%%</string>
 
     <!-- Settings Sections -->
@@ -21,8 +22,8 @@
 
     <!-- Reset Dialog -->
     <string name="reset_title">Reset Settings</string>
-    <string name="reset_message">Reset all settings to default values?</string>
-    <string name="reset_positive">Reset</string>
+    <string name="reset_message">Reset all settings and permanently delete every checkpoint and pending reminder?</string>
+    <string name="reset_positive">Reset and Delete</string>
     <string name="reset_negative">Cancel</string>
 
     <!-- Widget Preview -->
@@ -52,7 +53,22 @@
     <string name="border_color">Border Color</string>
     <string name="refresh_widget_now">Refresh Widget Now</string>
     <string name="refresh_widget_now_summary">Force an immediate widget refresh</string>
-    <string name="bar_size_summary">Small, medium, or large bar thickness. The launcher may still need manual vertical resize.</string>
+    <string name="display_mode">Display Mode</string>
+    <string name="base_theme">Base Theme</string>
+    <string name="color_transparency_summary">Tap to change color and transparency</string>
+    <string name="gradient_end_summary">Optional second color for the progress gradient</string>
+    <string name="unfilled_color_summary">Color of the uncompleted portion</string>
+    <string name="background_color_summary">Widget background color and transparency</string>
+    <string name="text_color_summary">Percentage text color</string>
+    <string name="border_settings">Border Settings</string>
+    <string name="enable_border">Enable Border</string>
+    <string name="border_thickness">Border Thickness</string>
+    <string name="change_color_summary">Tap to change color</string>
+    <string name="font_settings">Font Settings</string>
+    <string name="font_family">Font Family</string>
+    <string name="widget_behavior">Widget Behavior</string>
+    <string name="reset_defaults">Reset to Defaults</string>
+    <string name="reset_defaults_summary">Reset settings and delete all checkpoints</string>
 
     <!-- Day status and time remaining -->
     <string name="widget_progress_time_left">%1$d%% · %2$s left</string>
@@ -86,7 +102,8 @@
     <string name="add_checkpoint_summary">Choose any clock time or percentage of your day</string>
     <string name="notification_status_title">Checkpoint Notifications</string>
     <string name="notification_status_ready">Notifications are ready</string>
-    <string name="notification_status_blocked">Notifications are blocked. Tap to open notification settings.</string>
+    <string name="notification_status_blocked">Notifications or a checkpoint channel are blocked. Tap to open notification settings.</string>
+    <string name="notification_permission_denied">Checkpoint saved, but notifications are off. Enable them from Checkpoint Notifications.</string>
     <string name="checkpoint_new_title">New Checkpoint</string>
     <string name="checkpoint_edit_title">Edit Checkpoint</string>
     <string name="checkpoint_label_hint">Optional label, e.g. Take a break</string>
@@ -119,7 +136,7 @@
     <string name="notification_channel_gentle_description">Day checkpoint reminders without vibration</string>
     <string name="notification_channel_silent">Silent checkpoints</string>
     <string name="notification_channel_silent_description">Day checkpoint reminders with no sound or vibration</string>
-    <string name="notification_checkpoint_content">Day %1$d%% complete · scheduled for %2$s</string>
+    <string name="notification_checkpoint_content">Scheduled for %1$s</string>
     <string name="checkpoint_action_done">Done</string>
     <string name="checkpoint_action_snooze">Snooze 10 min</string>
     <string name="checkpoint_action_skip">Skip today</string>

@@ -17,26 +17,42 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.card.MaterialCardView
 import com.example.dayprogress.R
 import com.example.dayprogress.data.AppPreferences
 import com.example.dayprogress.data.CheckpointEngine
 import com.example.dayprogress.data.DayRepository
+import com.example.dayprogress.data.UsageDetector
 import com.example.dayprogress.data.WidgetStyleHelper
 import com.example.dayprogress.databinding.ActivitySettingsBinding
+import com.example.dayprogress.reminder.ReminderNotifier
+import com.example.dayprogress.reminder.ReminderScheduler
 import com.example.dayprogress.widget.DayProgressWidgetProvider
+import com.example.dayprogress.worker.AlarmScheduler
 import com.example.dayprogress.widget.WidgetDisplayFormatter
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: AppPreferences
+    private var lastUsageAccess: Boolean? = null
+    private var lastNotificationReady: Boolean? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.enableEdgeToEdge(window)
         try {
             binding = ActivitySettingsBinding.inflate(layoutInflater)
             setContentView(binding.root)
+            ViewCompat.setOnApplyWindowInsetsListener(binding.activityRoot) { view, insets ->
+                val bars = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+                )
+                view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                insets
+            }
             prefs = AppPreferences(this)
 
             setSupportActionBar(binding.toolbar)
@@ -60,7 +76,15 @@ class SettingsActivity : AppCompatActivity() {
             updatePreview()
             (supportFragmentManager.findFragmentById(R.id.settings_container) as? SettingsFragment)
                 ?.refreshPermissionState()
-            DayProgressWidgetProvider.updateAllWidgets(this)
+            val usageAccess = UsageDetector.hasUsageStatsPermission(this)
+            val notificationReady = ReminderNotifier.notificationsReady(this)
+            if (lastUsageAccess != usageAccess || lastNotificationReady != notificationReady) {
+                AlarmScheduler.scheduleWidgetUpdates(this)
+                ReminderScheduler.reschedule(this)
+                DayProgressWidgetProvider.refreshWidgetsInBackground(this)
+            }
+            lastUsageAccess = usageAccess
+            lastNotificationReady = notificationReady
         }
     }
 
@@ -71,20 +95,20 @@ class SettingsActivity : AppCompatActivity() {
                 .replace(R.id.settings_container, SettingsFragment())
                 .commitAllowingStateLoss()
         }
-        updatePreview()
     }
 
     fun updatePreview() {
         try {
+            val nowMillis = System.currentTimeMillis()
             val repository = DayRepository(this)
-            val status = repository.getDayStatus()
+            val status = repository.getDayStatus(nowMillis)
             val checkpointEngine = CheckpointEngine(this)
-            val markers = checkpointEngine.getWidgetMarkers()
+            val markers = checkpointEngine.getWidgetMarkers(nowMillis)
             val display = WidgetDisplayFormatter.format(
                 this,
                 status,
-                checkpointEngine.getNextVisibleOccurrence(),
-                markers.size,
+                checkpointEngine.getNextVisibleOccurrence(nowMillis),
+                markers,
                 prefs.widgetType == 1 || (prefs.widgetType == 2 && prefs.barSize == 2)
             )
             val previewContainer = findViewById<FrameLayout>(R.id.preview_container) ?: return
@@ -93,18 +117,8 @@ class SettingsActivity : AppCompatActivity() {
             previewContainer.layoutParams = previewContainer.layoutParams.apply {
                 height = dpToPx(getPreviewHeightDp(prefs.widgetType, prefs.barSize))
             }
-            previewContainer.background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 2f * resources.displayMetrics.density
-                if (prefs.theme == 3) {
-                    setColor(Color.TRANSPARENT)
-                    setStroke(1, ColorUtils.setAlphaComponent(prefs.progressColor, 72))
-                } else {
-                    setColor(ColorUtils.setAlphaComponent(prefs.backgroundColor, 24))
-                    setStroke(1, ColorUtils.setAlphaComponent(prefs.progressColor, 40))
-                }
-            }
-
+            val previewWidthDp = (previewContainer.width / resources.displayMetrics.density).toInt().coerceAtLeast(200)
+            val previewHeightDp = getPreviewHeightDp(prefs.widgetType, prefs.barSize)
             previewContainer.removeAllViews()
             val widgetView = LayoutInflater.from(this).inflate(layoutId, previewContainer, false)
 
@@ -114,7 +128,9 @@ class SettingsActivity : AppCompatActivity() {
                     backgroundColor = backgroundColor,
                     borderColor = prefs.borderColor,
                     borderThickness = prefs.borderThickness,
-                    borderEnabled = prefs.borderEnabled
+                    borderEnabled = prefs.borderEnabled,
+                    widthDp = previewWidthDp,
+                    heightDp = previewHeightDp
                 )
             )
 
@@ -126,6 +142,7 @@ class SettingsActivity : AppCompatActivity() {
                         filledEndColor = prefs.progressGradientEndColor,
                         unfilledColor = prefs.progressUnfilledColor,
                         markers = markers,
+                        widthDp = previewWidthDp,
                         heightDp = getBarHeightDp(prefs.widgetType, prefs.barSize)
                     )
                 )
@@ -265,7 +282,7 @@ class SettingsActivity : AppCompatActivity() {
                 2 -> 56
                 else -> 48
             }
-        }
+        }.coerceAtLeast(48)
     }
 
     private fun getProgressTextSizeSp(widgetType: Int, barSize: Int, textLength: Int): Float {
