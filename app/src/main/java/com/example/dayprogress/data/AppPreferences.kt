@@ -34,6 +34,19 @@ class AppPreferences(context: Context) {
         const val KEY_CHECKPOINTS = "checkpoints_v1"
         const val KEY_CHECKPOINT_STATES = "checkpoint_states_v1"
         const val KEY_CHECKPOINT_SNOOZE_ELAPSED = "checkpoint_snooze_elapsed_v1"
+        const val KEY_CHECKPOINT_ACTIONS = "checkpoint_actions_v1"
+        const val KEY_NOTIFICATION_OUTBOX = "notification_outbox_v1"
+        const val KEY_NOTIFICATION_IDS = "notification_ids_v1"
+        const val KEY_NOTIFICATION_ID_NEXT = "notification_id_next"
+        const val KEY_BOOT_RECOVERY_ACTION = "boot_recovery_action"
+        const val KEY_BOOT_RECOVERY_ATTEMPTS = "boot_recovery_attempts"
+        const val KEY_BOOT_RECOVERY_DEADLINE = "boot_recovery_deadline"
+        const val KEY_BOOT_RECOVERY_TERMINAL = "boot_recovery_terminal"
+        const val KEY_REMINDER_RECOVERY_ATTEMPTS = "reminder_recovery_attempts"
+        const val KEY_REMINDER_RECOVERY_DEADLINE = "reminder_recovery_deadline"
+        const val KEY_REMINDER_RECOVERY_TERMINAL = "reminder_recovery_terminal"
+        const val KEY_REMINDER_RECOVERY_PENDING = "reminder_recovery_pending"
+        const val KEY_REMINDER_RECOVERY_FALLBACK = "reminder_recovery_fallback"
     }
 
     private fun safeGetInt(key: String, default: Int, validRange: IntRange = Int.MIN_VALUE..Int.MAX_VALUE): Int {
@@ -191,4 +204,77 @@ class AppPreferences(context: Context) {
     var lastResetDate: String?
         get() = safeGetString(KEY_LAST_RESET_DATE)?.takeIf(DayIdFormatter::isValid)
         set(value) = prefs.edit { putString(KEY_LAST_RESET_DATE, value) }
+
+    val bootRecoveryAction: String?
+        get() = safeGetString(KEY_BOOT_RECOVERY_ACTION)
+
+    val bootRecoveryAttempts: Int
+        get() = safeGetInt(KEY_BOOT_RECOVERY_ATTEMPTS, 0, 0..100)
+
+    val bootRecoveryDeadlineMillis: Long
+        get() = safeGetLong(KEY_BOOT_RECOVERY_DEADLINE, -1L)
+
+    val bootRecoveryTerminal: Boolean
+        get() = safeGetBoolean(KEY_BOOT_RECOVERY_TERMINAL, false)
+
+    fun setBootRecovery(action: String, attempts: Int, deadlineMillis: Long, terminal: Boolean) {
+        require(attempts in 0..100)
+        require(deadlineMillis >= 0L)
+        prefs.edit(commit = true) {
+            putString(KEY_BOOT_RECOVERY_ACTION, action)
+            putInt(KEY_BOOT_RECOVERY_ATTEMPTS, attempts)
+            putLong(KEY_BOOT_RECOVERY_DEADLINE, deadlineMillis)
+            putBoolean(KEY_BOOT_RECOVERY_TERMINAL, terminal)
+        }
+    }
+
+    val reminderRecoveryAttempts: Int
+        get() = safeGetInt(KEY_REMINDER_RECOVERY_ATTEMPTS, 0, 0..100)
+
+    val reminderRecoveryDeadlineMillis: Long
+        get() = safeGetLong(KEY_REMINDER_RECOVERY_DEADLINE, -1L)
+
+    val reminderRecoveryTerminal: Boolean
+        get() = safeGetBoolean(KEY_REMINDER_RECOVERY_TERMINAL, false)
+
+    val reminderRecoveryPending: Boolean
+        get() = safeGetBoolean(KEY_REMINDER_RECOVERY_PENDING, false)
+
+    val reminderRecoveryUsesFallback: Boolean
+        get() = safeGetBoolean(KEY_REMINDER_RECOVERY_FALLBACK, false)
+
+    fun setReminderRecovery(
+        attempts: Int,
+        deadlineMillis: Long,
+        terminal: Boolean = false,
+        pending: Boolean = true,
+        usesFallback: Boolean = false
+    ) {
+        require(attempts in 0..100)
+        require(deadlineMillis >= -1L)
+        prefs.edit(commit = true) {
+            putInt(KEY_REMINDER_RECOVERY_ATTEMPTS, attempts)
+            putLong(KEY_REMINDER_RECOVERY_DEADLINE, deadlineMillis)
+            putBoolean(KEY_REMINDER_RECOVERY_TERMINAL, terminal)
+            putBoolean(KEY_REMINDER_RECOVERY_PENDING, pending)
+            putBoolean(KEY_REMINDER_RECOVERY_FALLBACK, usesFallback)
+        }
+    }
+
+    fun markReminderRecoveryTerminal() {
+        prefs.edit(commit = true) {
+            putBoolean(KEY_REMINDER_RECOVERY_TERMINAL, true)
+            putBoolean(KEY_REMINDER_RECOVERY_PENDING, true)
+        }
+    }
+
+    fun clearReminderRecovery() {
+        prefs.edit(commit = true) {
+            remove(KEY_REMINDER_RECOVERY_ATTEMPTS)
+            remove(KEY_REMINDER_RECOVERY_DEADLINE)
+            remove(KEY_REMINDER_RECOVERY_TERMINAL)
+            remove(KEY_REMINDER_RECOVERY_PENDING)
+            remove(KEY_REMINDER_RECOVERY_FALLBACK)
+        }
+    }
 }

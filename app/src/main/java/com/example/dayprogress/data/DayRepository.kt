@@ -225,10 +225,10 @@ class DayRepository(private val context: Context) {
         }
 
         if (prefs.manualStartDayId == window.logicalDayId) {
-            return storedManualStart
+            return storedManualStart.takeIf { it in window.ignoreBeforeMillis until window.dayEndMillis } ?: -1L
         }
 
-        if (prefs.manualStartDayId.isNullOrBlank() && storedManualStart in window.logicalDayStartMillis..window.dayEndMillis) {
+        if (prefs.manualStartDayId.isNullOrBlank() && storedManualStart in window.ignoreBeforeMillis until window.dayEndMillis) {
             prefs.manualStartDayId = window.logicalDayId
             return storedManualStart
         }
@@ -256,7 +256,7 @@ class DayRepository(private val context: Context) {
     ): Long? {
         val candidate = resolveClockTimeInWindow(window, clockMinutes)
 
-        if (candidate >= window.dayEndMillis) {
+        if (candidate < window.ignoreBeforeMillis || candidate >= window.dayEndMillis) {
             return null
         }
         if (!allowFuture && candidate > nowMillis) {
