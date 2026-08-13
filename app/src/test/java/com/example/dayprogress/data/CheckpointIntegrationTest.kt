@@ -15,6 +15,7 @@ import com.example.dayprogress.reminder.ReminderScheduler
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -64,7 +65,12 @@ class CheckpointIntegrationTest {
         assertEquals(localTime(2024, Calendar.JUNE, 3, 11, 0), schedule?.triggerAtMillis)
         assertEquals(8, schedule?.occurrences?.size)
 
-        ReminderScheduler.reschedule(context)
+        ReminderScheduler.scheduleRecovery(context)
+        assertTrue(AppPreferences(context).reminderRecoveryAttempts > 0)
+        assertTrue(ReminderScheduler.reschedule(context))
+        assertEquals(0, AppPreferences(context).reminderRecoveryAttempts)
+        assertEquals(-1L, AppPreferences(context).reminderRecoveryDeadlineMillis)
+        assertFalse(AppPreferences(context).reminderRecoveryTerminal)
         assertEquals(8, store.getStates().values.count { it.status == CheckpointStatus.SCHEDULED })
     }
 
@@ -196,6 +202,45 @@ class CheckpointIntegrationTest {
 
         assertEquals(8, localStart.get(Calendar.HOUR_OF_DAY))
         assertEquals(0, localStart.get(Calendar.MINUTE))
+    }
+
+    @Test
+    fun manualStartMustStayInsideBothConfiguredWindowBoundaries() {
+        val prefs = AppPreferences(context)
+        prefs.ignoreBefore = 6 * 60
+        prefs.dayEnd = 22 * 60
+        val now = localTime(2024, Calendar.JUNE, 3, 12, 0)
+        val repository = DayRepository(context)
+
+        assertEquals(localTime(2024, Calendar.JUNE, 3, 6, 0), repository.resolveManualStartTimeForCurrentDay(6 * 60, now))
+        assertEquals(localTime(2024, Calendar.JUNE, 3, 8, 0), repository.resolveManualStartTimeForCurrentDay(8 * 60, now))
+        assertEquals(
+            localTime(2024, Calendar.JUNE, 3, 21, 59),
+            repository.resolveManualStartTimeForCurrentDay(21 * 60 + 59, now, allowFuture = true)
+        )
+        assertNull(repository.resolveManualStartTimeForCurrentDay(13 * 60, now))
+        assertEquals(
+            localTime(2024, Calendar.JUNE, 3, 13, 0),
+            repository.resolveManualStartTimeForCurrentDay(13 * 60, now, allowFuture = true)
+        )
+        assertNull(repository.resolveManualStartTimeForCurrentDay(5 * 60, now))
+        assertNull(repository.resolveManualStartTimeForCurrentDay(22 * 60, now))
+    }
+
+    @Test
+    fun storedManualStartOutsideWindowIsIgnoredAtEitherBoundary() {
+        val prefs = AppPreferences(context)
+        prefs.ignoreBefore = 6 * 60
+        prefs.dayEnd = 22 * 60
+        prefs.manualStartDayId = "2024-06-03"
+        prefs.isManualLocked = false
+        val repository = DayRepository(context)
+        val now = localTime(2024, Calendar.JUNE, 3, 12, 0)
+
+        prefs.manualStartTime = localTime(2024, Calendar.JUNE, 3, 5, 59)
+        assertEquals(-1L, repository.getEffectiveStartTime(now))
+        prefs.manualStartTime = localTime(2024, Calendar.JUNE, 3, 22, 0)
+        assertEquals(-1L, repository.getEffectiveStartTime(now))
     }
 
     @Test
