@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -29,7 +28,6 @@ import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SeekBarPreference
 import androidx.preference.SwitchPreferenceCompat
-import androidx.recyclerview.widget.RecyclerView
 import com.example.dayprogress.R
 import com.example.dayprogress.data.AppPreferences
 import com.example.dayprogress.data.Checkpoint
@@ -81,26 +79,37 @@ class SettingsFragment : PreferenceFragmentCompat() {
             while (itemDecorationCount > 0) {
                 removeItemDecorationAt(0)
             }
-            addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                    applyMenuStyling()
-                }
-            })
         }
-        applyMenuStyling()
+        // Native theme colors follow recycled rows without per-scroll traversal.
+        setDivider(null)
     }
 
     private fun bindPreferences() {
+        for (index in 0 until preferenceScreen.preferenceCount) {
+            val category = preferenceScreen.getPreference(index) as? PreferenceCategory ?: continue
+            if (!category.title.isNullOrBlank()) category.layoutResource = R.layout.console_category
+            for (row in 0 until category.preferenceCount) {
+                val preference = category.getPreference(row)
+                preference.isIconSpaceReserved = preference.icon != null
+            }
+        }
+        findPreference<ListPreference>(AppPreferences.KEY_INTERFACE_PALETTE)?.setOnPreferenceChangeListener { _, newValue ->
+            prefs.interfacePalette = newValue as String
+            if (prefs.widgetFollowTheme) DayProgressWidgetProvider.refreshWidgetsInBackground(requireContext())
+            requireActivity().recreate()
+            true
+        }
+        findPreference<SwitchPreferenceCompat>(AppPreferences.KEY_WIDGET_FOLLOW_THEME)?.setOnPreferenceChangeListener { _, newValue ->
+            prefs.widgetFollowTheme = newValue as Boolean
+            updateCustomColorVisibility()
+            (activity as? SettingsActivity)?.updatePreview()
+            DayProgressWidgetProvider.refreshWidgetsInBackground(requireContext())
+            true
+        }
+        updateCustomColorVisibility()
         // Display Mode
         findPreference<ListPreference>(AppPreferences.KEY_WIDGET_TYPE)?.setOnPreferenceChangeListener { _, newValue ->
             prefs.widgetType = (newValue as String).toInt()
-            updateEverything()
-            true
-        }
-
-        // Theme
-        findPreference<ListPreference>(AppPreferences.KEY_THEME)?.setOnPreferenceChangeListener { _, newValue ->
-            prefs.theme = (newValue as String).toInt()
             updateEverything()
             true
         }
@@ -140,6 +149,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         findPreference<ListPreference>(AppPreferences.KEY_BAR_SIZE)?.setOnPreferenceChangeListener { _, newValue ->
             prefs.barSize = (newValue as String).toInt()
+            updateEverything()
+            true
+        }
+
+        findPreference<ListPreference>(AppPreferences.KEY_BAR_STYLE)?.setOnPreferenceChangeListener { _, newValue ->
+            prefs.barStyle = (newValue as String).toInt()
             updateEverything()
             true
         }
@@ -637,40 +652,15 @@ class SettingsFragment : PreferenceFragmentCompat() {
         return DateFormat.getTimeFormat(requireContext()).format(calendar.time)
     }
 
-    private fun getMenuTextColor(): Int {
-        return when (prefs.theme) {
-            1 -> Color.BLACK
-            2 -> Color.WHITE
-            3, 0 -> {
-                val nightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                if (nightMode == Configuration.UI_MODE_NIGHT_YES) Color.WHITE else Color.BLACK
-            }
-            else -> Color.WHITE
-        }
-    }
-
-    private fun applyMenuStyling() {
-        if (!isAdded) return
-
-        val titleColor = getMenuTextColor()
-        val summaryColor = Color.argb(
-            if (titleColor == Color.BLACK) 170 else 210,
-            Color.red(titleColor),
-            Color.green(titleColor),
-            Color.blue(titleColor)
-        )
-
-        for (i in 0 until listView.childCount) {
-            val child = listView.getChildAt(i)
-            child.findViewById<TextView>(android.R.id.title)?.setTextColor(titleColor)
-            child.findViewById<TextView>(android.R.id.summary)?.setTextColor(summaryColor)
-        }
+    private fun updateCustomColorVisibility() {
+        findPreference<PreferenceCategory>("custom_widget_colors")?.isVisible = !prefs.widgetFollowTheme
+        findPreference<Preference>(AppPreferences.KEY_BORDER_COLOR)?.isVisible = !prefs.widgetFollowTheme
     }
 
     private fun resetToDefaults() {
         prefs.apply {
             widgetType = 2
-            theme = 0
+            widgetFollowTheme = false
             progressColor = 0xFF40E0D0.toInt()
             progressUnfilledColor = 0xFFE0E0E0.toInt()
             progressGradientEndColor = 0xFF40E0D0.toInt()
@@ -684,6 +674,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             dayEnd = 22 * 60
             fontFamily = "default"
             barSize = 1
+            barStyle = 1
             detectedStartTime = -1L
             manualStartTime = -1L
             manualStartMinutes = -1
@@ -710,7 +701,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
         ReminderScheduler.reschedule(requireContext(), forceRecompute = recomputeReminders)
         DayProgressWidgetProvider.refreshWidgetsInBackground(requireContext())
         (activity as? SettingsActivity)?.updatePreview()
-        applyMenuStyling()
         refreshPermissionState()
     }
 

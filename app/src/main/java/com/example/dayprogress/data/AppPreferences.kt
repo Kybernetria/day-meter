@@ -11,7 +11,8 @@ class AppPreferences(context: Context) {
     companion object {
         const val FILE_NAME = "app_prefs"
         const val KEY_WIDGET_TYPE = "widget_type"
-        const val KEY_THEME = "theme"
+        const val KEY_INTERFACE_PALETTE = "interface_palette"
+        const val KEY_WIDGET_FOLLOW_THEME = "widget_follow_theme"
         const val KEY_PROGRESS_COLOR = "progress_color"
         const val KEY_PROGRESS_UNFILLED_COLOR = "progress_unfilled_color"
         const val KEY_PROGRESS_GRADIENT_END_COLOR = "progress_gradient_end_color"
@@ -22,6 +23,7 @@ class AppPreferences(context: Context) {
         const val KEY_BORDER_THICKNESS = "border_thickness"
         const val KEY_FONT_FAMILY = "font_family"
         const val KEY_BAR_SIZE = "bar_size"
+        const val KEY_BAR_STYLE = "bar_style"
         const val KEY_USAGE_THRESHOLD = "usage_threshold"
         const val KEY_IGNORE_BEFORE = "ignore_before"
         const val KEY_DAY_END = "day_end"
@@ -106,13 +108,31 @@ class AppPreferences(context: Context) {
         }
     }
 
+    init {
+        // Retire the old surface selector without turning transparent widgets opaque.
+        // Migrate and remove its key together; repeated construction is a no-op.
+        synchronized(AppPreferences::class.java) {
+            if (prefs.contains("theme")) {
+                val wasTransparent = safeGetInt("theme", 0, 0..3) == 3
+                prefs.edit {
+                    if (wasTransparent) putInt(KEY_BACKGROUND_COLOR, 0)
+                    remove("theme")
+                }
+            }
+        }
+    }
+
     var widgetType: Int
         get() = safeGetInt(KEY_WIDGET_TYPE, 2, 0..2)
         set(value) = prefs.edit { putString(KEY_WIDGET_TYPE, value.toString()) }
 
-    var theme: Int
-        get() = safeGetInt(KEY_THEME, 0, 0..3)
-        set(value) = prefs.edit { putString(KEY_THEME, value.toString()) }
+    var interfacePalette: String
+        get() = safeGetString(KEY_INTERFACE_PALETTE, "neon") ?: "neon"
+        set(value) = prefs.edit { putString(KEY_INTERFACE_PALETTE, value) }
+
+    var widgetFollowTheme: Boolean
+        get() = safeGetBoolean(KEY_WIDGET_FOLLOW_THEME, false)
+        set(value) = prefs.edit { putBoolean(KEY_WIDGET_FOLLOW_THEME, value) }
 
     var progressColor: Int
         get() = safeGetColor(KEY_PROGRESS_COLOR, 0xFF40E0D0.toInt())
@@ -155,6 +175,10 @@ class AppPreferences(context: Context) {
     var barSize: Int
         get() = safeGetInt(KEY_BAR_SIZE, 1, 0..2)
         set(value) = prefs.edit { putString(KEY_BAR_SIZE, value.toString()) }
+
+    var barStyle: Int
+        get() = safeGetInt(KEY_BAR_STYLE, 1, 0..2)
+        set(value) = prefs.edit { putString(KEY_BAR_STYLE, value.toString()) }
 
     var usageThreshold: Int
         get() = safeGetInt(KEY_USAGE_THRESHOLD, 5, 1..60)

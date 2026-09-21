@@ -10,19 +10,6 @@
         <item>2</item>
     </string-array>
 
-    <string-array name="theme_entries">
-        <item>System default</item>
-        <item>Light</item>
-        <item>Dark</item>
-        <item>Transparent</item>
-    </string-array>
-    <string-array name="theme_values">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-    </string-array>
-
     <string-array name="font_family_entries">
         <item>Default</item>
         <item>Sans Serif</item>
@@ -42,6 +29,16 @@
         <item>Large</item>
     </string-array>
     <string-array name="bar_size_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+    <string-array name="bar_style_entries">
+        <item>Smooth</item>
+        <item>Sectioned</item>
+        <item>Micro-segmented</item>
+    </string-array>
+    <string-array name="bar_style_values">
         <item>0</item>
         <item>1</item>
         <item>2</item>

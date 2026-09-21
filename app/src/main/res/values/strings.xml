@@ -19,6 +19,7 @@
     <string name="label_manual_start">Manual Start Time</string>
     <string name="label_lock_manual">Lock Manual Start Time</string>
     <string name="label_bar_size">Bar Size</string>
+    <string name="bar_style">Bar Style</string>
 
     <!-- Reset Dialog -->
     <string name="reset_title">Reset Settings</string>
@@ -54,7 +55,6 @@
     <string name="refresh_widget_now">Refresh Widget Now</string>
     <string name="refresh_widget_now_summary">Force an immediate widget refresh</string>
     <string name="display_mode">Display Mode</string>
-    <string name="base_theme">Base Theme</string>
     <string name="color_transparency_summary">Tap to change color and transparency</string>
     <string name="gradient_end_summary">Optional second color for the progress gradient</string>
     <string name="unfilled_color_summary">Color of the uncompleted portion</string>

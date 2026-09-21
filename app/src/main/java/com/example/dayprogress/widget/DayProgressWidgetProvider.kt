@@ -21,6 +21,7 @@ import com.example.dayprogress.data.CheckpointOccurrence
 import com.example.dayprogress.data.DayRepository
 import com.example.dayprogress.data.WidgetCheckpointMarker
 import com.example.dayprogress.data.WidgetStyleHelper
+import com.example.dayprogress.data.WidgetColors
 import com.example.dayprogress.reminder.ReminderScheduler
 import com.example.dayprogress.ui.SettingsActivity
 import com.example.dayprogress.worker.AlarmScheduler
@@ -74,7 +75,7 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
         private data class WidgetPreferences(
             val widgetType: Int,
             val barSize: Int,
-            val theme: Int,
+            val barStyle: Int,
             val backgroundColor: Int,
             val borderColor: Int,
             val borderThickness: Int,
@@ -118,7 +119,16 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
                 )
                 val layoutId = getLayoutId(prefs.widgetType, prefs.barSize)
                 val views = RemoteViews(context.packageName, layoutId)
-                val backgroundColor = if (prefs.theme == 3) 0 else prefs.backgroundColor
+                val backgroundColor = prefs.backgroundColor
+                val nextText = display.nextCheckpoint.takeIf {
+                    prefs.widgetType == 2 && prefs.barSize == 2 &&
+                        WidgetDisplayFormatter.canShowCheckpoint(widthDp, heightDp, context.resources.configuration.fontScale)
+                }
+                val surface = WidgetStyleHelper.measureSurface(
+                    context.resources, prefs.widgetType, getBarHeightDp(prefs.widgetType, prefs.barSize),
+                    display.primary, getProgressTextSizeSp(prefs.widgetType, prefs.barSize, display.primary.length),
+                    prefs.fontFamily, nextText != null, widthDp, heightDp
+                )
 
                 views.setImageViewBitmap(
                     R.id.widget_background_image,
@@ -127,8 +137,8 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
                         borderColor = prefs.borderColor,
                         borderThickness = prefs.borderThickness,
                         borderEnabled = prefs.borderEnabled,
-                        widthDp = widthDp,
-                        heightDp = heightDp
+                        widthDp = surface.widthDp,
+                        heightDp = surface.heightDp
                     )
                 )
 
@@ -141,8 +151,9 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
                             filledEndColor = prefs.progressGradientEndColor,
                             unfilledColor = prefs.progressUnfilledColor,
                             markers = snapshot.markers,
-                            widthDp = widthDp,
-                            heightDp = getBarHeightDp(prefs.widgetType, prefs.barSize)
+                            widthDp = (widthDp - 8).coerceAtLeast(1),
+                            heightDp = getBarHeightDp(prefs.widgetType, prefs.barSize),
+                            barStyle = prefs.barStyle
                         )
                     )
                 }
@@ -158,7 +169,6 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
                 }
 
                 if (prefs.widgetType == 2 && prefs.barSize == 2) {
-                    val nextText = display.nextCheckpoint.takeIf { widthDp >= 220 && heightDp >= 64 }
                     views.setViewVisibility(R.id.next_checkpoint_text, if (nextText == null) View.GONE else View.VISIBLE)
                     views.setTextViewText(R.id.next_checkpoint_text, nextText.orEmpty())
                     views.setTextColor(R.id.next_checkpoint_text, prefs.textColor)
@@ -194,19 +204,20 @@ class DayProgressWidgetProvider : AppWidgetProvider() {
             val repository = DayRepository(context)
             val source = repository.getPreferences()
             val checkpointEngine = CheckpointEngine(context)
+            val colors = WidgetColors.resolve(source)
             return Snapshot(
                 prefs = WidgetPreferences(
                     widgetType = source.widgetType,
                     barSize = source.barSize,
-                    theme = source.theme,
-                    backgroundColor = source.backgroundColor,
-                    borderColor = source.borderColor,
+                    barStyle = source.barStyle,
+                    backgroundColor = colors.background,
+                    borderColor = colors.border,
                     borderThickness = source.borderThickness,
                     borderEnabled = source.borderEnabled,
-                    progressColor = source.progressColor,
-                    progressGradientEndColor = source.progressGradientEndColor,
-                    progressUnfilledColor = source.progressUnfilledColor,
-                    textColor = source.textColor,
+                    progressColor = colors.fill,
+                    progressGradientEndColor = colors.fillEnd,
+                    progressUnfilledColor = colors.track,
+                    textColor = colors.text,
                     fontFamily = source.fontFamily
                 ),
                 status = repository.getDayStatus(nowMillis),

@@ -15,6 +15,10 @@ internal data class WidgetDisplayText(
 )
 
 internal object WidgetDisplayFormatter {
+    // Large combined mode needs room for two text lines as well as its 14dp rail.
+    fun canShowCheckpoint(widthDp: Int, heightDp: Int, fontScale: Float): Boolean =
+        widthDp >= 220 && heightDp >= maxOf(64f, 25f * fontScale + 22f)
+
     fun format(
         context: Context,
         status: DayRepository.DayStatus,

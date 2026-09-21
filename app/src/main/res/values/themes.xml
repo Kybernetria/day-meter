@@ -1,6 +1,30 @@
 <resources>
-    <style name="Theme.DayProgressWidget" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#40E0D0</item>
-        <item name="colorSecondary">#E0E0E0</item>
+    <!-- Static native palettes: no dynamic wallpaper reads or animated effects. -->
+    <style name="Theme.DayProgressWidget" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#64FCE3</item>
+        <item name="colorSecondary">#FF71CF</item>
+        <item name="colorOnPrimary">#002820</item>
+        <item name="colorSurface">#111D29</item>
+        <item name="colorOnSurface">#EDF5FF</item>
+        <item name="android:colorBackground">#080F19</item>
+        <item name="android:textColorPrimary">#EDF5FF</item>
+        <item name="android:textColorSecondary">#A7B8CD</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay</item>
+    </style>
+    <style name="Theme.DayProgressWidget.Violet">
+        <item name="colorPrimary">#D0A2FF</item>
+        <item name="colorSecondary">#FF86AE</item>
+        <item name="colorOnPrimary">#29113F</item>
+        <item name="colorSurface">#21172F</item>
+        <item name="android:colorBackground">#100B1B</item>
+    </style>
+    <style name="Theme.DayProgressWidget.Ember">
+        <item name="colorPrimary">#FFC078</item>
+        <item name="colorSecondary">#D3EC88</item>
+        <item name="colorOnPrimary">#352008</item>
+        <item name="colorSurface">#261E18</item>
+        <item name="android:colorBackground">#120F0C</item>
     </style>
 </resources>

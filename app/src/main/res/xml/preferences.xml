@@ -2,6 +2,22 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <PreferenceCategory app:title="@string/console_appearance">
+        <ListPreference
+            app:key="interface_palette"
+            app:defaultValue="neon"
+            app:entries="@array/console_theme_entries"
+            app:entryValues="@array/console_theme_values"
+            app:title="@string/console_theme"
+            app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            app:key="widget_follow_theme"
+            app:defaultValue="false"
+            app:title="@string/widget_follow_theme"
+            app:summaryOn="@string/widget_follow_theme_on"
+            app:summaryOff="@string/widget_follow_theme_off" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/section_widget_type">
         <ListPreference
             app:defaultValue="2"
@@ -12,15 +28,9 @@
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/section_theme">
-        <ListPreference
-            app:defaultValue="0"
-            app:entries="@array/theme_entries"
-            app:entryValues="@array/theme_values"
-            app:key="theme"
-            app:title="@string/base_theme"
-            app:useSimpleSummaryProvider="true" />
-        
+    <PreferenceCategory
+        app:key="custom_widget_colors"
+        app:title="@string/custom_widget_colors">
         <Preference
             app:key="progress_color"
             app:title="@string/progress_fill_color"
@@ -146,6 +156,13 @@
             app:title="@string/label_bar_size"
             app:entries="@array/bar_size_entries"
             app:entryValues="@array/bar_size_values"
+            app:defaultValue="1"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            app:key="bar_style"
+            app:title="@string/bar_style"
+            app:entries="@array/bar_style_entries"
+            app:entryValues="@array/bar_style_values"
             app:defaultValue="1"
             app:useSimpleSummaryProvider="true" />
 

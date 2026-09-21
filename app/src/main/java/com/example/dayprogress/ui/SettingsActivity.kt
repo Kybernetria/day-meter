@@ -1,9 +1,6 @@
 package com.example.dayprogress.ui
 
-import android.content.res.Configuration
-import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.TypedValue
 import android.text.SpannableString
@@ -20,13 +17,13 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.card.MaterialCardView
 import com.example.dayprogress.R
 import com.example.dayprogress.data.AppPreferences
 import com.example.dayprogress.data.CheckpointEngine
 import com.example.dayprogress.data.DayRepository
 import com.example.dayprogress.data.UsageDetector
 import com.example.dayprogress.data.WidgetStyleHelper
+import com.example.dayprogress.data.WidgetColors
 import com.example.dayprogress.databinding.ActivitySettingsBinding
 import com.example.dayprogress.reminder.ReminderNotifier
 import com.example.dayprogress.reminder.ReminderScheduler
@@ -41,6 +38,12 @@ class SettingsActivity : AppCompatActivity() {
     private var lastNotificationReady: Boolean? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val palette = AppPreferences(this).interfacePalette
+        setTheme(when (palette) {
+            "violet" -> R.style.Theme_DayProgressWidget_Violet
+            "ember" -> R.style.Theme_DayProgressWidget_Ember
+            else -> R.style.Theme_DayProgressWidget
+        })
         super.onCreate(savedInstanceState)
         WindowCompat.enableEdgeToEdge(window)
         try {
@@ -56,7 +59,7 @@ class SettingsActivity : AppCompatActivity() {
             prefs = AppPreferences(this)
 
             setSupportActionBar(binding.toolbar)
-            supportActionBar?.title = getString(R.string.settings_title)
+            supportActionBar?.title = getString(R.string.console_title)
             applyAppColors()
 
             WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -111,6 +114,8 @@ class SettingsActivity : AppCompatActivity() {
                 markers,
                 prefs.widgetType == 1 || (prefs.widgetType == 2 && prefs.barSize == 2)
             )
+            findViewById<TextView>(R.id.day_readout).text = display.primary
+            findViewById<SignalMeterView>(R.id.day_signal).progress = status.progress
             val previewContainer = findViewById<FrameLayout>(R.id.preview_container) ?: return
 
             val layoutId = getLayoutId(prefs.widgetType, prefs.barSize)
@@ -119,18 +124,34 @@ class SettingsActivity : AppCompatActivity() {
             }
             val previewWidthDp = (previewContainer.width / resources.displayMetrics.density).toInt().coerceAtLeast(200)
             val previewHeightDp = getPreviewHeightDp(prefs.widgetType, prefs.barSize)
-            previewContainer.removeAllViews()
-            val widgetView = LayoutInflater.from(this).inflate(layoutId, previewContainer, false)
+            // Reuse the preview hierarchy unless its layout actually changes.
+            val existing = previewContainer.getChildAt(0)
+            val widgetView = if (existing?.tag == layoutId) existing else {
+                previewContainer.removeAllViews()
+                LayoutInflater.from(this).inflate(layoutId, previewContainer, false).also {
+                    it.tag = layoutId
+                    previewContainer.addView(it)
+                }
+            }
 
-            val backgroundColor = if (prefs.theme == 3) 0 else prefs.backgroundColor
+            val colors = WidgetColors.resolve(prefs)
+            val nextText = display.nextCheckpoint.takeIf {
+                prefs.widgetType == 2 && prefs.barSize == 2 &&
+                    WidgetDisplayFormatter.canShowCheckpoint(previewWidthDp, previewHeightDp, resources.configuration.fontScale)
+            }
+            val surface = WidgetStyleHelper.measureSurface(
+                resources, prefs.widgetType, getBarHeightDp(prefs.widgetType, prefs.barSize),
+                display.primary, getProgressTextSizeSp(prefs.widgetType, prefs.barSize, display.primary.length),
+                prefs.fontFamily, nextText != null, previewWidthDp, previewHeightDp
+            )
             widgetView.findViewById<ImageView>(R.id.widget_background_image)?.setImageBitmap(
                 WidgetStyleHelper.createBackgroundBitmap(
-                    backgroundColor = backgroundColor,
-                    borderColor = prefs.borderColor,
+                    backgroundColor = colors.background,
+                    borderColor = colors.border,
                     borderThickness = prefs.borderThickness,
                     borderEnabled = prefs.borderEnabled,
-                    widthDp = previewWidthDp,
-                    heightDp = previewHeightDp
+                    widthDp = surface.widthDp,
+                    heightDp = surface.heightDp
                 )
             )
 
@@ -138,12 +159,13 @@ class SettingsActivity : AppCompatActivity() {
                 widgetView.findViewById<ImageView>(R.id.progress_bar_image)?.setImageBitmap(
                     WidgetStyleHelper.createProgressBitmap(
                         progress = status.progress,
-                        filledStartColor = prefs.progressColor,
-                        filledEndColor = prefs.progressGradientEndColor,
-                        unfilledColor = prefs.progressUnfilledColor,
+                        filledStartColor = colors.fill,
+                        filledEndColor = colors.fillEnd,
+                        unfilledColor = colors.track,
                         markers = markers,
-                        widthDp = previewWidthDp,
-                        heightDp = getBarHeightDp(prefs.widgetType, prefs.barSize)
+                        widthDp = (previewWidthDp - 8).coerceAtLeast(1),
+                        heightDp = getBarHeightDp(prefs.widgetType, prefs.barSize),
+                        barStyle = prefs.barStyle
                     )
                 )
             }
@@ -151,23 +173,22 @@ class SettingsActivity : AppCompatActivity() {
             if (prefs.widgetType == 1 || prefs.widgetType == 2) {
                 widgetView.findViewById<TextView>(R.id.progress_text)?.apply {
                     text = buildProgressText(display.primary)
-                    setTextColor(prefs.textColor)
+                    setTextColor(colors.text)
                     setTextSize(
                         TypedValue.COMPLEX_UNIT_SP,
                         getProgressTextSizeSp(prefs.widgetType, prefs.barSize, display.primary.length)
                     )
-                    typeface = resolveTypeface(prefs.fontFamily)
+                    typeface = Typeface.create(resolveTypeface(prefs.fontFamily), Typeface.BOLD)
                 }
             }
 
             widgetView.findViewById<TextView>(R.id.next_checkpoint_text)?.apply {
-                text = display.nextCheckpoint.orEmpty()
-                visibility = if (display.nextCheckpoint == null) View.GONE else View.VISIBLE
-                setTextColor(prefs.textColor)
+                text = nextText.orEmpty()
+                visibility = if (nextText == null) View.GONE else View.VISIBLE
+                setTextColor(colors.text)
             }
             widgetView.findViewById<View>(R.id.widget_root)?.contentDescription = display.contentDescription
 
-            previewContainer.addView(widgetView)
             applyAppColors()
         } catch (e: Exception) {
             Log.e("SettingsActivity", "Error updating preview", e)
@@ -175,66 +196,16 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun applyAppColors() {
-        val startColor = prefs.progressColor
-        val endColor = prefs.progressGradientEndColor
-        val midColor = ColorUtils.blendARGB(startColor, endColor, 0.5f)
-        val onPrimaryColor = if (ColorUtils.calculateLuminance(midColor) > 0.5) {
-            0xFF000000.toInt()
-        } else {
-            0xFFFFFFFF.toInt()
-        }
-
-        val surfaceColor = getBaseSurfaceColor()
-        val onSurfaceColor = if (ColorUtils.calculateLuminance(surfaceColor) > 0.5) {
-            Color.BLACK
-        } else {
-            Color.WHITE
-        }
-        val cardStrokeColor = if (surfaceColor == Color.TRANSPARENT) {
-            ColorUtils.setAlphaComponent(midColor, 120)
-        } else {
-            ColorUtils.setAlphaComponent(onSurfaceColor, 56)
-        }
-
-        binding.activityRoot.setBackgroundColor(surfaceColor)
-
-        binding.toolbar.background = GradientDrawable(
-            GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(startColor, endColor)
-        )
-        binding.toolbar.setTitleTextColor(onPrimaryColor)
-
-        findViewById<MaterialCardView>(R.id.preview_card)?.apply {
-            setCardBackgroundColor(surfaceColor)
-            strokeColor = cardStrokeColor
-            cardElevation = 8f * resources.displayMetrics.density
-        }
-
-        findViewById<MaterialCardView>(R.id.settings_card)?.apply {
-            setCardBackgroundColor(surfaceColor)
-            strokeColor = cardStrokeColor
-            cardElevation = 8f * resources.displayMetrics.density
-        }
-
-        findViewById<TextView>(R.id.preview_title)?.setTextColor(onSurfaceColor)
-        findViewById<TextView>(R.id.preview_subtitle)?.setTextColor(ColorUtils.setAlphaComponent(onSurfaceColor, 220))
-
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = ColorUtils.calculateLuminance(midColor) > 0.5
-            isAppearanceLightNavigationBars = ColorUtils.calculateLuminance(surfaceColor) > 0.5
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
     }
 
     private fun getBaseSurfaceColor(): Int {
-        return when (prefs.theme) {
-            1 -> Color.WHITE
-            2 -> Color.BLACK
-            3 -> Color.TRANSPARENT
-            else -> {
-                val nightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                if (nightMode == Configuration.UI_MODE_NIGHT_YES) Color.BLACK else Color.WHITE
-            }
-        }
+        val value = TypedValue()
+        theme.resolveAttribute(android.R.attr.colorBackground, value, true)
+        return value.data
     }
 
     private fun getLayoutId(widgetType: Int, barSize: Int): Int {
