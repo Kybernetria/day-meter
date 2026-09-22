@@ -18,7 +18,7 @@
     <string name="label_day_end">Day End Time</string>
     <string name="label_manual_start">Manual Start Time</string>
     <string name="label_lock_manual">Lock Manual Start Time</string>
-    <string name="label_bar_size">Bar Size</string>
+    <string name="label_bar_size">Widget Size</string>
     <string name="bar_style">Bar Style</string>
 
     <!-- Reset Dialog -->
@@ -29,7 +29,6 @@
 
     <!-- Widget Preview -->
     <string name="preview_title">Widget Preview</string>
-    <string name="preview_subtitle">Live preview of your current widget style</string>
 
     <!-- Validation Messages -->
     <string name="manual_time_required">Please set manual start time first</string>

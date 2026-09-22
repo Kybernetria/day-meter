@@ -1,8 +1,5 @@
 <resources>
     <string name="console_title">DAY / METER</string>
-    <string name="console_subtitle">MAKE TIME VISIBLE</string>
-    <string name="console_today">01 / DAY SIGNAL</string>
-    <string name="console_preview">Your widget • actual colors and layout</string>
     <string name="console_theme">Theme</string>
     <string name="widget_follow_theme">Follow interface palette</string>
     <string name="widget_follow_theme_on">Widget colors match the theme. Your custom colors are saved.</string>

@@ -13,9 +13,7 @@
         android:layout_height="?attr/actionBarSize"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        app:titleTextColor="?attr/colorPrimary"
-        app:subtitleTextColor="?android:attr/textColorSecondary"
-        app:subtitle="@string/console_subtitle" />
+        app:titleTextColor="?attr/colorPrimary" />
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:layout_width="match_parent"

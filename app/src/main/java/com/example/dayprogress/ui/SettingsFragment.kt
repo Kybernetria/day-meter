@@ -107,9 +107,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
         updateCustomColorVisibility()
+        updateBarStyleVisibility()
         // Display Mode
         findPreference<ListPreference>(AppPreferences.KEY_WIDGET_TYPE)?.setOnPreferenceChangeListener { _, newValue ->
             prefs.widgetType = (newValue as String).toInt()
+            updateBarStyleVisibility()
             updateEverything()
             true
         }
@@ -655,6 +657,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private fun updateCustomColorVisibility() {
         findPreference<PreferenceCategory>("custom_widget_colors")?.isVisible = !prefs.widgetFollowTheme
         findPreference<Preference>(AppPreferences.KEY_BORDER_COLOR)?.isVisible = !prefs.widgetFollowTheme
+    }
+
+    private fun updateBarStyleVisibility() {
+        findPreference<Preference>(AppPreferences.KEY_BAR_STYLE)?.isVisible = prefs.widgetType != 1
     }
 
     private fun resetToDefaults() {

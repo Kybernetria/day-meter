@@ -3,7 +3,9 @@ package com.example.dayprogress.ui
 import android.content.Context
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import androidx.test.core.app.ApplicationProvider
 import com.example.dayprogress.R
 import org.junit.Assert.assertEquals
@@ -14,6 +16,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Robolectric
 import com.example.dayprogress.data.AppPreferences
 import org.junit.Assert.assertSame
+import com.google.android.material.card.MaterialCardView
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.ConscryptMode
 
@@ -33,7 +36,8 @@ class ConsoleThemeTest {
             val view = LayoutInflater.from(context).inflate(R.layout.activity_settings, null)
             assertNotNull(view.findViewById<FrameLayout>(R.id.settings_container))
             assertNotNull(view.findViewById<FrameLayout>(R.id.preview_container))
-            assertNotNull(view.findViewById<SignalMeterView>(R.id.day_signal))
+            val preview = view.findViewById<MaterialCardView>(R.id.preview_card)
+            assertEquals(2, (preview.getChildAt(0) as LinearLayout).childCount)
         }
     }
 
@@ -51,6 +55,7 @@ class ConsoleThemeTest {
                 val activity = controller.get()
                 val preview = activity.findViewById<FrameLayout>(R.id.preview_container)
                 assertEquals(1, preview.childCount)
+                assertNotNull(preview.findViewById<View>(R.id.progress_bar_image))
                 val original = preview.getChildAt(0)
                 activity.updatePreview()
                 assertSame(original, preview.getChildAt(0))
@@ -68,6 +73,12 @@ class ConsoleThemeTest {
                 follow.callChangeListener(false)
                 assertEquals(true, customColors.isVisible)
                 assertEquals(0xFF123456.toInt(), prefs.progressColor)
+                val displayMode = fragment.findPreference<androidx.preference.ListPreference>(AppPreferences.KEY_WIDGET_TYPE)!!
+                val barStyle = fragment.findPreference<androidx.preference.ListPreference>(AppPreferences.KEY_BAR_STYLE)!!
+                displayMode.callChangeListener("1")
+                assertEquals(false, barStyle.isVisible)
+                displayMode.callChangeListener("2")
+                assertEquals(true, barStyle.isVisible)
             } finally {
                 controller.pause().stop().destroy()
             }
@@ -75,17 +86,4 @@ class ConsoleThemeTest {
         storage.edit().clear().commit()
     }
 
-    @Test
-    fun signalBoundsProgress() {
-        val context = ContextThemeWrapper(
-            ApplicationProvider.getApplicationContext<Context>(), R.style.Theme_DayProgressWidget
-        )
-        val signal = SignalMeterView(context)
-        signal.progress = -10
-        assertEquals(0, signal.progress)
-        signal.progress = 130
-        assertEquals(100, signal.progress)
-        signal.progress = 42
-        assertEquals(42, signal.progress)
-    }
 }

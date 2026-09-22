@@ -20,40 +20,15 @@
             android:id="@+id/preview_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:letterSpacing="0.12"
-            android:text="@string/console_today"
+            android:text="@string/preview_title"
             android:textColor="?attr/colorPrimary"
-            android:textSize="11sp" />
-        <TextView
-            android:id="@+id/day_readout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="sans-serif-condensed"
-            android:textColor="?attr/colorOnSurface"
             android:textStyle="bold"
-            android:textSize="30sp" />
-        <com.example.dayprogress.ui.SignalMeterView
-            android:id="@+id/day_signal"
-            android:layout_width="match_parent"
-            android:layout_height="28dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginBottom="12dp"
-            android:importantForAccessibility="no" />
-        <TextView
-            android:id="@+id/preview_subtitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="@string/console_preview"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="12sp" />
+            android:textSize="14sp" />
         <FrameLayout
             android:id="@+id/preview_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:minHeight="48dp" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

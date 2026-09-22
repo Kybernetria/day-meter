@@ -57,6 +57,10 @@ class SettingsActivity : AppCompatActivity() {
                 insets
             }
             prefs = AppPreferences(this)
+            findViewById<FrameLayout>(R.id.preview_container).addOnLayoutChangeListener {
+                _, left, _, right, _, oldLeft, _, oldRight, _ ->
+                if (right - left != oldRight - oldLeft) updatePreview()
+            }
 
             setSupportActionBar(binding.toolbar)
             supportActionBar?.title = getString(R.string.console_title)
@@ -114,15 +118,20 @@ class SettingsActivity : AppCompatActivity() {
                 markers,
                 prefs.widgetType == 1 || (prefs.widgetType == 2 && prefs.barSize == 2)
             )
-            findViewById<TextView>(R.id.day_readout).text = display.primary
-            findViewById<SignalMeterView>(R.id.day_signal).progress = status.progress
             val previewContainer = findViewById<FrameLayout>(R.id.preview_container) ?: return
 
             val layoutId = getLayoutId(prefs.widgetType, prefs.barSize)
-            previewContainer.layoutParams = previewContainer.layoutParams.apply {
-                height = dpToPx(getPreviewHeightDp(prefs.widgetType, prefs.barSize))
+            val previewHeightPx = dpToPx(getPreviewHeightDp(prefs.widgetType, prefs.barSize))
+            if (previewContainer.layoutParams.height != previewHeightPx) {
+                previewContainer.layoutParams = previewContainer.layoutParams.apply {
+                    height = previewHeightPx
+                }
             }
-            val previewWidthDp = (previewContainer.width / resources.displayMetrics.density).toInt().coerceAtLeast(200)
+            val previewWidthDp = if (previewContainer.width > 0) {
+                (previewContainer.width / resources.displayMetrics.density).toInt().coerceAtLeast(1)
+            } else {
+                200
+            }
             val previewHeightDp = getPreviewHeightDp(prefs.widgetType, prefs.barSize)
             // Reuse the preview hierarchy unless its layout actually changes.
             val existing = previewContainer.getChildAt(0)
