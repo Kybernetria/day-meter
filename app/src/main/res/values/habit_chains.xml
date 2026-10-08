@@ -1,0 +1,29 @@
+<resources>
+    <string name="chain_section">Habit chain</string>
+    <string name="chain_wait_for">Wait for checkpoint</string>
+    <string name="chain_none">None (independent)</string>
+    <string name="chain_help">Remind only after both the scheduled time and the prior step is Done. Chains reset at midnight.</string>
+    <string name="chain_details_title">How habit chains work</string>
+    <string name="chain_details_message">Remind at the selected time or percentage, but only after this checkpoint is Done. Optional delay starts at completion. Skip and Snooze do not unlock the chain. Chains reset at midnight; both steps must use the same calendar date.</string>
+    <string name="chain_delay_hint">Delay after completion (minutes, 0–1440)</string>
+    <string name="chain_invalid">Choose a chain without loops, with a predecessor that repeats on every selected day.</string>
+    <string name="chain_delay_invalid">Enter a delay from 0 to 1440 minutes.</string>
+    <string name="chain_link_summary">After %1$s · delay %2$d min</string>
+    <string name="chain_waiting">Today: waiting for %1$s</string>
+    <string name="chain_waiting_disabled">Today: %1$s is disabled — enable it or remove the link</string>
+    <string name="chain_waiting_delay">Today: waiting until %1$s after completion</string>
+    <string name="chain_waiting_start">Today: waiting for day start</string>
+    <string name="chain_ready">Today: available · earliest reminder %1$s</string>
+    <string name="chain_not_today">Not scheduled on this calendar date</string>
+    <string name="chain_today_done">Today: Done</string>
+    <string name="chain_today_skipped">Today: skipped — later steps still wait</string>
+    <string name="chain_today_missed">Today: reminder missed — you can still complete it</string>
+    <string name="chain_today_notified">Today: reminder sent</string>
+    <string name="chain_today_snoozed">Today: reminder snoozed</string>
+    <string name="chain_done_today">Mark Done today</string>
+    <string name="chain_delete_linked">Other checkpoints wait for this one. Remove their links before deleting it.</string>
+    <string name="chain_saved_first">Save this checkpoint to manage today’s progress.</string>
+    <string name="chain_changed">Checkpoint changed. Reopen it to manage today’s progress.</string>
+    <string name="chain_delay_tomorrow">Today: delay extends past midnight — this step expires when the chain resets</string>
+    <string name="chain_delay_value">%1$d</string>
+</resources>

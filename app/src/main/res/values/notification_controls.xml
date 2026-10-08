@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_channel_vibrate">Vibration reminders</string>
+    <string name="notif_channel_vibrate_description">Checkpoint reminders with vibration and no sound</string>
+    <string name="notif_channel_prominent">Prominent reminders</string>
+    <string name="notif_channel_prominent_description">Checkpoint reminders with sound, vibration, and pop-up alerts when allowed by Android</string>
+    <string name="notif_snooze_title">Snooze shortcuts</string>
+    <string name="notif_persistent_title">Keep reminders until handled</string>
+    <string name="notif_persistent_summary">Opening a reminder keeps it visible. Done, Skip, or Snooze clears it. Android may still allow dismissal.</string>
+    <string name="notif_lock_screen_title">Show details on lock screen</string>
+    <string name="notif_lock_screen_summary">Allow checkpoint names and reminder details on your lock screen. Android privacy settings still apply.</string>
+    <string name="notif_system_controls_title">Android notification controls</string>
+    <string name="notif_system_controls_summary">Android controls each style’s sound, vibration, and pop-up alerts. Your system choices take priority.</string>
+    <string-array name="notif_mode_entries">
+        <item>Gentle · sound</item>
+        <item>Silent</item>
+        <item>Vibration only</item>
+        <item>Prominent · sound and vibration</item>
+    </string-array>
+    <string name="notif_snooze_presets_summary">%1$s min · Custom is always available</string>
+    <string name="notif_snooze_presets_help">Enter up to 6 durations in minutes, separated by commas. These shortcuts appear when you tap Snooze on a reminder. Custom is always available.</string>
+    <string name="notif_snooze_presets_hint">5, 10, 15, 30, 60</string>
+    <string name="notif_snooze_presets_error">Enter 1–6 different durations between 1 and 1440 minutes, separated by commas.</string>
+    <string name="notif_snooze_presets_reset">Reset choices</string>
+    <item type="id" name="snooze_presets_input" />
+</resources>

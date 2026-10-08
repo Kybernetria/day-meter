@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="snooze_picker_action">Snooze…</string>
+    <string name="snooze_picker_title">Snooze checkpoint</string>
+    <string name="snooze_picker_help">Choose how many minutes from now to remind you again.</string>
+    <string name="snooze_picker_chain_note">Chains reset at midnight. Snoozes that cross midnight do not carry today’s chain into tomorrow.</string>
+    <string name="snooze_picker_minutes">%1$d min</string>
+    <string name="snooze_picker_custom">Custom duration</string>
+    <string name="snooze_picker_custom_hint">Minutes</string>
+    <string name="snooze_picker_custom_help">1–1,440 minutes (up to 24 hours)</string>
+    <string name="snooze_picker_custom_error">Enter a whole number from 1 to 1,440.</string>
+    <string name="snooze_picker_confirm">Snooze</string>
+    <string name="snooze_picker_cancel">Cancel</string>
+    <string name="snooze_picker_unavailable">This reminder is no longer available. Open Day Meter to check its status.</string>
+    <item type="id" name="snooze_preset_0" />
+    <item type="id" name="snooze_preset_1" />
+    <item type="id" name="snooze_preset_2" />
+    <item type="id" name="snooze_preset_3" />
+    <item type="id" name="snooze_preset_4" />
+    <item type="id" name="snooze_preset_5" />
+    <style name="Theme.DayProgressWidget.Snooze" parent="Theme.DayProgressWidget">
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowCloseOnTouchOutside">true</item>
+        <item name="android:windowMinWidthMajor">90%</item>
+        <item name="android:windowMinWidthMinor">90%</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+    </style>
+    <style name="Theme.DayProgressWidget.Snooze.Violet">
+        <item name="colorPrimary">#D0A2FF</item>
+        <item name="colorSecondary">#FF86AE</item>
+        <item name="colorOnPrimary">#29113F</item>
+        <item name="colorSurface">#21172F</item>
+    </style>
+    <style name="Theme.DayProgressWidget.Snooze.Ember">
+        <item name="colorPrimary">#FFC078</item>
+        <item name="colorSecondary">#D3EC88</item>
+        <item name="colorOnPrimary">#352008</item>
+        <item name="colorSurface">#261E18</item>
+    </style>
+</resources>

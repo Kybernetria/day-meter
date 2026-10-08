@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/snooze_picker_title"
+            android:textAppearance="?attr/textAppearanceHeadlineSmall" />
+        <TextView
+            android:id="@+id/snooze_checkpoint_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/snooze_picker_help"
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
+        <TextView
+            android:id="@+id/snooze_chain_note"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/snooze_picker_chain_note"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:visibility="gone" />
+        <RadioGroup
+            android:id="@+id/snooze_choices"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical">
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/snooze_custom_option"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/snooze_picker_custom" />
+        </RadioGroup>
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/snooze_custom_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/snooze_picker_custom_hint"
+            android:visibility="gone"
+            app:helperText="@string/snooze_picker_custom_help">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/snooze_custom_minutes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:imeOptions="actionDone"
+                android:maxLength="8"
+                android:singleLine="true" />
+        </com.google.android.material.textfield.TextInputLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/snooze_cancel"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/snooze_picker_cancel" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/snooze_confirm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:minHeight="48dp"
+                android:text="@string/snooze_picker_confirm" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
