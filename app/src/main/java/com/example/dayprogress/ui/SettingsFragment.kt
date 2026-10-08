@@ -91,6 +91,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             for (row in 0 until category.preferenceCount) {
                 val preference = category.getPreference(row)
                 preference.isIconSpaceReserved = preference.icon != null
+                preference.isSingleLineTitle = false
             }
         }
         findPreference<ListPreference>(AppPreferences.KEY_INTERFACE_PALETTE)?.setOnPreferenceChangeListener { _, newValue ->
@@ -231,7 +232,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         findPreference<Preference>("clear_manual_start")?.setOnPreferenceClickListener {
             clearManualStart()
-            Toast.makeText(context, R.string.manual_start_cleared, Toast.LENGTH_SHORT).show()
+            showAutomaticStartFeedback()
             true
         }
 
@@ -239,7 +240,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             clearManualStart(update = false)
             prefs.detectedStartTime = -1L
             updateEverything(recomputeReminders = true)
-            Toast.makeText(context, R.string.automatic_start_enabled, Toast.LENGTH_SHORT).show()
+            showAutomaticStartFeedback()
             true
         }
 
@@ -302,10 +303,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
             requireContext(),
             { _, hourOfDay, minute ->
                 val selectedMinutes = hourOfDay * 60 + minute
-                val resolvedStartTime = repository.resolveManualStartTimeForCurrentDay(selectedMinutes)
+                val resolvedStartTime = repository.resolveManualStartTimeForCurrentDay(
+                    selectedMinutes, allowFuture = prefs.isManualLocked
+                )
 
                 if (resolvedStartTime == null) {
-                    Toast.makeText(context, R.string.manual_time_invalid, Toast.LENGTH_LONG).show()
+                    val message = if (prefs.isManualLocked) R.string.settings_daily_time_invalid else R.string.manual_time_invalid
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                     return@TimePickerDialog
                 }
 
@@ -318,7 +322,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
             initialCalendar.get(Calendar.HOUR_OF_DAY),
             initialCalendar.get(Calendar.MINUTE),
             DateFormat.is24HourFormat(requireContext())
-        ).show()
+        ).apply {
+            setTitle(if (prefs.isManualLocked) R.string.settings_edit_daily_start else R.string.settings_edit_today_start)
+        }.show()
     }
 
     private fun showResetDialog() {
@@ -564,8 +570,53 @@ class SettingsFragment : PreferenceFragmentCompat() {
         findPreference<Preference>("notification_status")?.summary = getString(
             if (ReminderNotifier.notificationsReady(requireContext())) R.string.notification_status_ready else R.string.notification_status_blocked
         )
-        findPreference<Preference>("clear_manual_start")?.isEnabled = prefs.manualStartTime != -1L
+        refreshStartModeState()
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (::repository.isInitialized) {
+            repository.checkAndResetDay()
+            updateTimeSummaries()
+            refreshPermissionState()
+        }
+    }
+
+    private fun refreshStartModeState() {
+        val hasManualStart = prefs.manualStartTime != -1L
+        findPreference<Preference>("clear_manual_start")?.isEnabled = hasManualStart
+        findPreference<SwitchPreferenceCompat>(AppPreferences.KEY_IS_MANUAL_LOCKED)?.apply {
+            isEnabled = hasManualStart
+            isChecked = prefs.isManualLocked
+        }
+        findPreference<Preference>(AppPreferences.KEY_MANUAL_START_TIME)?.let(::updateManualStartSummary)
+        val status = when {
+            hasManualStart && prefs.isManualLocked -> getString(
+                R.string.settings_status_daily, formatTimestamp(prefs.manualStartTime)
+            )
+            hasManualStart -> getString(
+                R.string.settings_status_today, formatTimestamp(prefs.manualStartTime)
+            )
+            repository.getEffectiveStartTime() != -1L -> getString(
+                R.string.settings_status_automatic_detected, formatTimestamp(repository.getEffectiveStartTime())
+            )
+            !UsageDetector.hasUsageStatsPermission(requireContext()) -> getString(R.string.settings_status_automatic_permission)
+            else -> getString(R.string.settings_status_automatic_waiting, prefs.usageThreshold)
+        }
+        findPreference<Preference>("start_status")?.summary = status
+    }
+
+    private fun showAutomaticStartFeedback() {
+        val message = when {
+            repository.getEffectiveStartTime() != -1L -> R.string.settings_automatic_detected_feedback
+            !UsageDetector.hasUsageStatsPermission(requireContext()) -> R.string.settings_automatic_permission_feedback
+            else -> R.string.settings_automatic_waiting_feedback
+        }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+
+    private fun formatTimestamp(timestamp: Long): String =
+        DateFormat.getTimeFormat(requireContext()).format(java.util.Date(timestamp))
 
     private fun clearManualStart(update: Boolean = true) {
         prefs.manualStartTime = -1L
@@ -632,6 +683,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun updateManualStartSummary(pref: Preference) {
+        pref.title = getString(if (prefs.isManualLocked) R.string.settings_edit_daily_start else R.string.label_manual_start)
         if (prefs.manualStartTime == -1L) {
             pref.summary = getString(R.string.manual_start_not_set)
             return
@@ -642,7 +694,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         pref.summary = if (prefs.isManualLocked) {
             getString(R.string.manual_start_summary_daily, summary)
         } else {
-            summary
+            getString(R.string.settings_manual_today_summary, summary)
         }
     }
 

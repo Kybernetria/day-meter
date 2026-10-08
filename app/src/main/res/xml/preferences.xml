@@ -2,23 +2,91 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <PreferenceCategory app:title="@string/console_appearance">
-        <ListPreference
-            app:key="interface_palette"
-            app:defaultValue="neon"
-            app:entries="@array/console_theme_entries"
-            app:entryValues="@array/console_theme_values"
-            app:title="@string/console_theme"
-            app:useSimpleSummaryProvider="true" />
-        <SwitchPreferenceCompat
-            app:key="widget_follow_theme"
-            app:defaultValue="false"
-            app:title="@string/widget_follow_theme"
-            app:summaryOn="@string/widget_follow_theme_on"
-            app:summaryOff="@string/widget_follow_theme_off" />
+    <PreferenceCategory
+        app:key="day_window_category"
+        app:title="@string/settings_day_window">
+        <Preference
+            app:key="ignore_before"
+            app:title="@string/label_ignore_before" />
+
+        <Preference
+            app:key="day_end"
+            app:title="@string/label_day_end" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/section_widget_type">
+    <PreferenceCategory
+        app:key="day_start_category"
+        app:title="@string/settings_day_start">
+        <Preference
+            app:key="start_status"
+            app:title="@string/settings_start_status"
+            app:selectable="false" />
+
+        <Preference
+            app:key="start_day_now"
+            app:title="@string/start_day_now"
+            app:summary="@string/start_day_now_summary" />
+
+        <Preference
+            app:key="manual_start_time"
+            app:title="@string/label_manual_start"
+            app:summary="@string/manual_start_not_set" />
+
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="is_manual_locked"
+            app:title="@string/label_lock_manual"
+            app:summaryOn="@string/settings_repeat_on"
+            app:summaryOff="@string/settings_repeat_off" />
+
+        <Preference
+            app:key="clear_manual_start"
+            app:title="@string/clear_manual_start"
+            app:summary="@string/clear_manual_start_summary" />
+
+        <Preference
+            app:key="use_automatic_start"
+            app:title="@string/use_automatic_start"
+            app:summary="@string/use_automatic_start_summary" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="automatic_detection_category"
+        app:title="@string/settings_automatic_detection">
+        <Preference
+            app:key="usage_access_status"
+            app:title="@string/usage_access_setting_title"
+            app:summary="@string/usage_access_setting_summary" />
+
+        <androidx.preference.SeekBarPreference
+            app:defaultValue="5"
+            app:key="usage_threshold"
+            android:max="60"
+            app:min="1"
+            app:title="@string/label_usage_threshold" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="checkpoint_category"
+        app:title="@string/section_checkpoints">
+        <Preference
+            app:key="add_checkpoint"
+            app:title="@string/add_checkpoint"
+            app:summary="@string/add_checkpoint_summary"
+            app:icon="@android:drawable/ic_input_add" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="notification_category"
+        app:title="@string/settings_notifications">
+        <Preference
+            app:key="notification_status"
+            app:title="@string/notification_status_title" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="widget_display_category"
+        app:title="@string/section_widget_type">
         <ListPreference
             app:defaultValue="2"
             app:entries="@array/widget_type_entries"
@@ -26,6 +94,41 @@
             app:key="widget_type"
             app:title="@string/display_mode"
             app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            app:key="bar_size"
+            app:title="@string/label_bar_size"
+            app:entries="@array/bar_size_entries"
+            app:entryValues="@array/bar_size_values"
+            app:defaultValue="1"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            app:key="bar_style"
+            app:title="@string/bar_style"
+            app:entries="@array/bar_style_entries"
+            app:entryValues="@array/bar_style_values"
+            app:defaultValue="1"
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="appearance_category"
+        app:title="@string/console_appearance">
+        <ListPreference
+            app:key="interface_palette"
+            app:defaultValue="neon"
+            app:entries="@array/console_theme_entries"
+            app:entryValues="@array/console_theme_values"
+            app:title="@string/console_theme"
+            app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreferenceCompat
+            app:key="widget_follow_theme"
+            app:defaultValue="false"
+            app:title="@string/widget_follow_theme"
+            app:summaryOn="@string/widget_follow_theme_on"
+            app:summaryOff="@string/widget_follow_theme_off" />
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -57,12 +160,14 @@
             app:summary="@string/text_color_summary" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/border_settings">
+    <PreferenceCategory
+        app:key="border_category"
+        app:title="@string/border_settings">
         <SwitchPreferenceCompat
             app:key="border_enabled"
             app:title="@string/enable_border"
             app:defaultValue="false" />
-        
+
         <androidx.preference.SeekBarPreference
             app:key="border_thickness"
             app:title="@string/border_thickness"
@@ -70,7 +175,7 @@
             android:max="10"
             app:defaultValue="2"
             app:dependency="border_enabled" />
-        
+
         <Preference
             app:key="border_color"
             app:title="@string/border_color"
@@ -78,7 +183,9 @@
             app:dependency="border_enabled" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/font_settings">
+    <PreferenceCategory
+        app:key="font_category"
+        app:title="@string/font_settings">
         <ListPreference
             app:key="font_family"
             app:title="@string/font_family"
@@ -88,91 +195,14 @@
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/section_time">
-        <Preference
-            app:key="usage_access_status"
-            app:title="@string/usage_access_setting_title"
-            app:summary="@string/usage_access_setting_summary" />
-
-        <androidx.preference.SeekBarPreference
-            app:defaultValue="5"
-            app:key="usage_threshold"
-            android:max="60"
-            app:min="1"
-            app:title="@string/label_usage_threshold" />
-
-        <Preference
-            app:key="ignore_before"
-            app:title="@string/label_ignore_before" />
-
-        <Preference
-            app:key="day_end"
-            app:title="@string/label_day_end" />
-
-        <Preference
-            app:key="manual_start_time"
-            app:title="@string/label_manual_start"
-            app:summary="@string/manual_start_not_set" />
-
-        <Preference
-            app:key="start_day_now"
-            app:title="@string/start_day_now"
-            app:summary="@string/start_day_now_summary" />
-
-        <Preference
-            app:key="clear_manual_start"
-            app:title="@string/clear_manual_start"
-            app:summary="@string/clear_manual_start_summary" />
-
-        <Preference
-            app:key="use_automatic_start"
-            app:title="@string/use_automatic_start"
-            app:summary="@string/use_automatic_start_summary" />
-            
-        <SwitchPreferenceCompat
-            app:defaultValue="false"
-            app:key="is_manual_locked"
-            app:title="@string/label_lock_manual" />
-    </PreferenceCategory>
-
     <PreferenceCategory
-        app:key="checkpoint_category"
-        app:title="@string/section_checkpoints">
-
-        <Preference
-            app:key="notification_status"
-            app:title="@string/notification_status_title" />
-
-        <Preference
-            app:key="add_checkpoint"
-            app:title="@string/add_checkpoint"
-            app:summary="@string/add_checkpoint_summary"
-            app:icon="@android:drawable/ic_input_add" />
-    </PreferenceCategory>
-
-    <PreferenceCategory app:title="@string/widget_behavior">
-        <ListPreference
-            app:key="bar_size"
-            app:title="@string/label_bar_size"
-            app:entries="@array/bar_size_entries"
-            app:entryValues="@array/bar_size_values"
-            app:defaultValue="1"
-            app:useSimpleSummaryProvider="true" />
-        <ListPreference
-            app:key="bar_style"
-            app:title="@string/bar_style"
-            app:entries="@array/bar_style_entries"
-            app:entryValues="@array/bar_style_values"
-            app:defaultValue="1"
-            app:useSimpleSummaryProvider="true" />
-
+        app:key="maintenance_category"
+        app:title="@string/settings_maintenance">
         <Preference
             app:key="force_update"
             app:title="@string/refresh_widget_now"
             app:summary="@string/refresh_widget_now_summary" />
-    </PreferenceCategory>
 
-    <PreferenceCategory>
         <Preference
             app:key="reset_defaults"
             app:title="@string/reset_defaults"
