@@ -176,6 +176,8 @@ class CheckpointStore(context: Context) {
             remove(AppPreferences.KEY_CHECKPOINTS)
             remove(AppPreferences.KEY_CHECKPOINT_STATES)
             remove(AppPreferences.KEY_CHECKPOINT_SNOOZE_ELAPSED)
+            remove(AppPreferences.KEY_NOTIFICATION_IDS)
+            remove(AppPreferences.KEY_NOTIFICATION_ID_NEXT)
         }
     }
 
@@ -193,7 +195,8 @@ class CheckpointStore(context: Context) {
     }
 
     private fun writeStates(states: Collection<CheckpointState>) {
-        prefs.edit {
+        // State transitions are durable obligations; do not leave the commit to a later apply().
+        prefs.edit(commit = true) {
             putStringSet(AppPreferences.KEY_CHECKPOINT_STATES, states.map(::encodeState).toSet())
             putStringSet(
                 AppPreferences.KEY_CHECKPOINT_SNOOZE_ELAPSED,
