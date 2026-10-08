@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.format.DateFormat
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -31,6 +33,9 @@ import androidx.preference.SwitchPreferenceCompat
 import com.example.dayprogress.R
 import com.example.dayprogress.data.AppPreferences
 import com.example.dayprogress.data.Checkpoint
+import com.example.dayprogress.data.CheckpointEngine
+import com.example.dayprogress.data.CheckpointState
+import com.example.dayprogress.data.CheckpointStatus
 import com.example.dayprogress.data.CheckpointNotificationMode
 import com.example.dayprogress.data.CheckpointStore
 import com.example.dayprogress.data.CheckpointTriggerType
@@ -41,6 +46,7 @@ import com.example.dayprogress.reminder.ReminderScheduler
 import com.example.dayprogress.reminder.ReminderTransitions
 import com.example.dayprogress.widget.DayProgressWidgetProvider
 import com.example.dayprogress.worker.AlarmScheduler
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.skydoves.colorpickerview.ColorPickerDialog
 import com.skydoves.colorpickerview.listeners.ColorEnvelopeListener
 import java.text.DateFormatSymbols
@@ -91,6 +97,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             for (row in 0 until category.preferenceCount) {
                 val preference = category.getPreference(row)
                 preference.isIconSpaceReserved = preference.icon != null
+                preference.isSingleLineTitle = false
             }
         }
         findPreference<ListPreference>(AppPreferences.KEY_INTERFACE_PALETTE)?.setOnPreferenceChangeListener { _, newValue ->
@@ -231,7 +238,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         findPreference<Preference>("clear_manual_start")?.setOnPreferenceClickListener {
             clearManualStart()
-            Toast.makeText(context, R.string.manual_start_cleared, Toast.LENGTH_SHORT).show()
+            showAutomaticStartFeedback()
             true
         }
 
@@ -239,7 +246,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             clearManualStart(update = false)
             prefs.detectedStartTime = -1L
             updateEverything(recomputeReminders = true)
-            Toast.makeText(context, R.string.automatic_start_enabled, Toast.LENGTH_SHORT).show()
+            showAutomaticStartFeedback()
             true
         }
 
@@ -302,10 +309,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
             requireContext(),
             { _, hourOfDay, minute ->
                 val selectedMinutes = hourOfDay * 60 + minute
-                val resolvedStartTime = repository.resolveManualStartTimeForCurrentDay(selectedMinutes)
+                val resolvedStartTime = repository.resolveManualStartTimeForCurrentDay(
+                    selectedMinutes, allowFuture = prefs.isManualLocked
+                )
 
                 if (resolvedStartTime == null) {
-                    Toast.makeText(context, R.string.manual_time_invalid, Toast.LENGTH_LONG).show()
+                    val message = if (prefs.isManualLocked) R.string.settings_daily_time_invalid else R.string.manual_time_invalid
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                     return@TimePickerDialog
                 }
 
@@ -318,7 +328,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
             initialCalendar.get(Calendar.HOUR_OF_DAY),
             initialCalendar.get(Calendar.MINUTE),
             DateFormat.is24HourFormat(requireContext())
-        ).show()
+        ).apply {
+            setTitle(if (prefs.isManualLocked) R.string.settings_edit_daily_start else R.string.settings_edit_today_start)
+        }.show()
     }
 
     private fun showResetDialog() {
@@ -342,6 +354,54 @@ class SettingsFragment : PreferenceFragmentCompat() {
         val markerCheck = view.findViewById<CheckBox>(R.id.checkpoint_show_marker)
         val enabledCheck = view.findViewById<CheckBox>(R.id.checkpoint_enabled)
 
+        val predecessorSpinner = view.findViewById<Spinner>(R.id.checkpoint_predecessor)
+        val delayInput = view.findViewById<EditText>(R.id.checkpoint_chain_delay)
+        val chainHelp = view.findViewById<TextView>(R.id.checkpoint_chain_help)
+        val todayStatus = view.findViewById<TextView>(R.id.checkpoint_today_status)
+        val todayActions = view.findViewById<View>(R.id.checkpoint_today_actions)
+        val doneButton = view.findViewById<Button>(R.id.checkpoint_done_today)
+        val skipButton = view.findViewById<Button>(R.id.checkpoint_skip_today)
+        val draft = existing ?: Checkpoint()
+        val allCheckpoints = checkpointStore.getCheckpoints().associateBy(Checkpoint::id)
+        val predecessors = allCheckpoints.values.filter { candidate ->
+            val visited = mutableSetOf(draft.id)
+            var ancestor: Checkpoint? = candidate
+            var valid = true
+            while (ancestor != null) {
+                if (!visited.add(ancestor.id)) { valid = false; break }
+                ancestor = ancestor.predecessorId?.let(allCheckpoints::get)
+            }
+            valid
+        }
+        predecessorSpinner.adapter = ArrayAdapter(requireContext(), R.layout.checkpoint_spinner_item,
+            listOf(getString(R.string.chain_none)) + predecessors.map {
+                "${it.displayLabel()} · ${formatDays(it.daysMask)} · ${if (it.triggerType == CheckpointTriggerType.CLOCK) formatClockSummary(it.triggerValue) else getString(R.string.checkpoint_percent_value, it.triggerValue)}"
+            }).apply { setDropDownViewResource(R.layout.checkpoint_spinner_item) }
+        predecessorSpinner.setSelection(predecessors.indexOfFirst { it.id == existing?.predecessorId } + 1)
+        delayInput.setText(getString(R.string.chain_delay_value, existing?.delayMinutes ?: 0))
+        predecessorSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, selected: View?, position: Int, id: Long) {
+                delayInput.visibility = if (position == 0) View.GONE else View.VISIBLE
+                view.findViewById<View>(R.id.checkpoint_chain_delay_label).visibility = delayInput.visibility
+                chainHelp.visibility = if (position == 0) View.GONE else View.VISIBLE
+                view.findViewById<View>(R.id.checkpoint_chain_details).visibility = chainHelp.visibility
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        view.findViewById<Button>(R.id.checkpoint_chain_details).setOnClickListener {
+            MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.chain_details_title)
+                .setMessage(R.string.chain_details_message).setPositiveButton(android.R.string.ok, null).show()
+        }
+        todayActions.visibility = if (existing == null) View.GONE else View.VISIBLE
+        todayStatus.text = existing?.let(::checkpointTodaySummary) ?: getString(R.string.chain_saved_first)
+        val occurrence = existing?.let { CheckpointEngine(requireContext()).getCurrentOccurrence(it) }
+        val currentStatus = occurrence?.let { checkpointStore.getState(it.checkpoint.id, it.occurrenceDayId)?.status }
+        val actionable = occurrence != null && existing?.enabled == true &&
+            !CheckpointEngine(requireContext()).isBlocked(existing, occurrence.occurrenceDayId) && currentStatus != CheckpointStatus.DONE
+        doneButton.isEnabled = actionable
+        skipButton.isEnabled = occurrence != null && existing?.enabled == true &&
+            currentStatus !in setOf(CheckpointStatus.DONE, CheckpointStatus.SKIPPED)
+
         var clockMinutes = existing?.takeIf { it.triggerType == CheckpointTriggerType.CLOCK }?.triggerValue ?: 12 * 60
         var daysMask = existing?.daysMask ?: Checkpoint.ALL_DAYS_MASK
         val startsAsPercent = existing?.triggerType == CheckpointTriggerType.PERCENT
@@ -349,6 +409,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
         labelInput.setText(existing?.label.orEmpty())
         triggerGroup.check(if (startsAsPercent) R.id.checkpoint_percent_type else R.id.checkpoint_clock_type)
         percentSeek.progress = existing?.takeIf { startsAsPercent }?.triggerValue ?: 50
+        notificationMode.adapter = ArrayAdapter(requireContext(), R.layout.checkpoint_spinner_item,
+            resources.getStringArray(R.array.checkpoint_notification_modes)).apply {
+                setDropDownViewResource(R.layout.checkpoint_spinner_item)
+            }
         notificationMode.setSelection(if (existing?.notificationMode == CheckpointNotificationMode.SILENT) 1 else 0)
         markerCheck.isChecked = existing?.showOnWidget ?: true
         enabledCheck.isChecked = existing?.enabled ?: true
@@ -409,16 +473,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
         refreshTriggerControls()
         refreshDaysButton()
 
-        val dialog = AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle(if (existing == null) R.string.checkpoint_new_title else R.string.checkpoint_edit_title)
             .setView(view)
             .setPositiveButton(R.string.checkpoint_save, null)
             .setNegativeButton(R.string.cancel_button, null)
-            .apply {
-                if (existing != null) setNeutralButton(R.string.checkpoint_delete, null)
-            }
             .create()
 
+        view.findViewById<View>(R.id.checkpoint_delete_button).visibility = if (existing == null) View.GONE else View.VISIBLE
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 if (daysMask == 0) {
@@ -430,11 +492,19 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 } else {
                     CheckpointTriggerType.CLOCK
                 }
-                val checkpoint = (existing ?: Checkpoint()).copy(
+                val predecessorId = predecessors.getOrNull(predecessorSpinner.selectedItemPosition - 1)?.id
+                val delay = if (predecessorId == null) 0 else delayInput.text.toString().toIntOrNull()
+                if (delay == null || delay !in 0..1440) {
+                    delayInput.error = getString(R.string.chain_delay_invalid)
+                    return@setOnClickListener
+                }
+                val checkpoint = draft.copy(
                     label = labelInput.text?.toString()?.trim().orEmpty(),
                     triggerType = triggerType,
                     triggerValue = if (triggerType == CheckpointTriggerType.PERCENT) percentSeek.progress else clockMinutes,
                     daysMask = daysMask,
+                    predecessorId = predecessorId,
+                    delayMinutes = delay,
                     notificationMode = if (notificationMode.selectedItemPosition == 1) {
                         CheckpointNotificationMode.SILENT
                     } else {
@@ -443,11 +513,18 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     showOnWidget = markerCheck.isChecked,
                     enabled = enabledCheck.isChecked
                 )
+                if (!checkpointStore.canSaveCheckpoint(checkpoint)) {
+                    todayStatus.text = getString(R.string.chain_invalid)
+                    (view as android.widget.ScrollView).smoothScrollTo(0, 0)
+                    return@setOnClickListener
+                }
                 val invalidatesCurrentOccurrence = existing != null && (
                     existing.triggerType != checkpoint.triggerType ||
                         existing.triggerValue != checkpoint.triggerValue ||
                         existing.daysMask != checkpoint.daysMask ||
-                        existing.enabled != checkpoint.enabled
+                        existing.enabled != checkpoint.enabled ||
+                        existing.predecessorId != checkpoint.predecessorId ||
+                        existing.delayMinutes != checkpoint.delayMinutes
                     )
                 val saved = ReminderTransitions.run {
                     if (!checkpointStore.saveCheckpoint(checkpoint)) {
@@ -458,6 +535,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                                 .filter { it.checkpointId == checkpoint.id }
                                 .forEach { ReminderNotifier.cancel(requireContext(), it.checkpointId, it.occurrenceDayId) }
                             checkpointStore.clearStatesForCheckpoint(checkpoint.id)
+                            clearPendingDependentReminders(checkpoint.id)
                         }
                         true
                     }
@@ -473,7 +551,21 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 Toast.makeText(context, R.string.checkpoint_saved, Toast.LENGTH_SHORT).show()
             }
             if (existing != null) {
-                dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                fun finishToday(status: CheckpointStatus) {
+                    if (completeCheckpointToday(existing, status, occurrence?.occurrenceDayId)) {
+                        dialog.dismiss()
+                        rebuildCheckpointPreferences()
+                        updateEverything(recomputeReminders = true)
+                    } else todayStatus.text = getString(R.string.chain_changed)
+                }
+                doneButton.setOnClickListener { finishToday(CheckpointStatus.DONE) }
+                skipButton.setOnClickListener { finishToday(CheckpointStatus.SKIPPED) }
+                view.findViewById<Button>(R.id.checkpoint_delete_button).setOnClickListener {
+                    if (checkpointStore.getCheckpoints().any { it.predecessorId == existing.id }) {
+                        todayStatus.text = getString(R.string.chain_delete_linked)
+                        (view as android.widget.ScrollView).smoothScrollTo(0, 0)
+                        return@setOnClickListener
+                    }
                     AlertDialog.Builder(requireContext())
                         .setTitle(R.string.checkpoint_delete_title)
                         .setMessage(R.string.checkpoint_delete_message)
@@ -508,6 +600,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             category.addPreference(Preference(requireContext()).apply {
                 key = CHECKPOINT_PREFERENCE_PREFIX + checkpoint.id
                 title = checkpoint.displayLabel()
+                isSingleLineTitle = false
                 summary = checkpointSummary(checkpoint)
                 setOnPreferenceClickListener {
                     showCheckpointEditor(checkpoint)
@@ -526,7 +619,79 @@ class SettingsFragment : PreferenceFragmentCompat() {
         } else {
             getString(R.string.checkpoint_summary_percent, checkpoint.triggerValue, formatDays(checkpoint.daysMask), mode)
         }
-        return summary + if (checkpoint.enabled) "" else getString(R.string.checkpoint_disabled_suffix)
+        val predecessor = checkpoint.predecessorId?.let { id -> checkpointStore.getCheckpoints().find { it.id == id } }
+        val link = predecessor?.let { "\n" + getString(R.string.chain_link_summary, it.displayLabel(), checkpoint.delayMinutes) }.orEmpty()
+        return summary + (if (checkpoint.enabled) "" else getString(R.string.checkpoint_disabled_suffix)) + link +
+            (if (checkpoint.enabled) "\n" + checkpointTodaySummary(checkpoint) else "")
+    }
+
+    private fun clearPendingDependentReminders(predecessorId: String) {
+        val checkpoints = checkpointStore.getCheckpoints()
+        val dependentIds = mutableSetOf(predecessorId)
+        var added: Boolean
+        do {
+            added = false
+            checkpoints.filter { it.predecessorId in dependentIds }.forEach {
+                if (dependentIds.add(it.id)) added = true
+            }
+        } while (added)
+        checkpointStore.getStates().values.filter {
+            it.checkpointId != predecessorId && it.checkpointId in dependentIds &&
+                it.status in setOf(CheckpointStatus.SCHEDULED, CheckpointStatus.NOTIFIED, CheckpointStatus.SNOOZED)
+        }.forEach {
+            ReminderNotifier.cancel(requireContext(), it.checkpointId, it.occurrenceDayId)
+            checkpointStore.removeState(it.checkpointId, it.occurrenceDayId)
+        }
+    }
+
+    private fun checkpointTodaySummary(checkpoint: Checkpoint): String {
+        val engine = CheckpointEngine(requireContext())
+        val occurrence = engine.getCurrentOccurrence(checkpoint) ?: return getString(
+            if (checkpoint.triggerType == CheckpointTriggerType.PERCENT && repository.getEffectiveStartTime() == -1L &&
+                checkpoint.appliesOn(Calendar.getInstance().get(Calendar.DAY_OF_WEEK))) R.string.chain_waiting_start else R.string.chain_not_today
+        )
+        val state = checkpointStore.getState(checkpoint.id, occurrence.occurrenceDayId)
+        val statusResource = when (state?.status) {
+            CheckpointStatus.DONE -> R.string.chain_today_done
+            CheckpointStatus.SKIPPED -> R.string.chain_today_skipped
+            CheckpointStatus.MISSED -> R.string.chain_today_missed
+            else -> null
+        }
+        if (statusResource != null) return getString(statusResource)
+        val time = DateFormat.getTimeFormat(requireContext()).format(java.util.Date(occurrence.dueAtMillis))
+        if (engine.isBlocked(checkpoint, occurrence.occurrenceDayId)) {
+            val predecessor = checkpointStore.getCheckpoints().find { it.id == checkpoint.predecessorId }
+            return when {
+                predecessor?.enabled == false -> getString(R.string.chain_waiting_disabled, predecessor.displayLabel())
+                predecessor != null && checkpointStore.getState(predecessor.id, occurrence.occurrenceDayId)?.status == CheckpointStatus.DONE ->
+                    if (com.example.dayprogress.data.DayIdFormatter.format(occurrence.dueAtMillis) != occurrence.occurrenceDayId)
+                        getString(R.string.chain_delay_tomorrow)
+                    else getString(R.string.chain_waiting_delay, time)
+                else -> getString(R.string.chain_waiting, predecessor?.displayLabel() ?: getString(R.string.checkpoint_label_hint))
+            }
+        }
+        return when (state?.status) {
+            CheckpointStatus.NOTIFIED -> getString(R.string.chain_today_notified)
+            CheckpointStatus.SNOOZED -> getString(R.string.chain_today_snoozed)
+            else -> getString(R.string.chain_ready, time)
+        }
+    }
+
+    internal fun completeCheckpointToday(checkpoint: Checkpoint, status: CheckpointStatus, expectedDayId: String? = null): Boolean = ReminderTransitions.run {
+        if (status !in setOf(CheckpointStatus.DONE, CheckpointStatus.SKIPPED)) return@run false
+        val current = checkpointStore.getCheckpoints().find { it.id == checkpoint.id } ?: return@run false
+        if (current != checkpoint || !current.enabled) return@run false
+        val now = System.currentTimeMillis()
+        val engine = CheckpointEngine(requireContext())
+        val occurrence = engine.getCurrentOccurrence(current, now) ?: return@run false
+        if (expectedDayId != null && occurrence.occurrenceDayId != expectedDayId) return@run false
+        if (status == CheckpointStatus.DONE && engine.isBlocked(current, occurrence.occurrenceDayId, now)) return@run false
+        val previous = checkpointStore.getState(current.id, occurrence.occurrenceDayId)
+        if (previous?.status == CheckpointStatus.DONE) return@run false
+        checkpointStore.putState(CheckpointState(current.id, occurrence.occurrenceDayId, status,
+            completedAtMillis = if (status == CheckpointStatus.DONE) now else -1L))
+        ReminderNotifier.cancel(requireContext(), current.id, occurrence.occurrenceDayId)
+        true
     }
 
     private fun formatDays(daysMask: Int): String {
@@ -564,8 +729,54 @@ class SettingsFragment : PreferenceFragmentCompat() {
         findPreference<Preference>("notification_status")?.summary = getString(
             if (ReminderNotifier.notificationsReady(requireContext())) R.string.notification_status_ready else R.string.notification_status_blocked
         )
-        findPreference<Preference>("clear_manual_start")?.isEnabled = prefs.manualStartTime != -1L
+        refreshStartModeState()
+        rebuildCheckpointPreferences()
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (::repository.isInitialized) {
+            repository.checkAndResetDay()
+            updateTimeSummaries()
+            refreshPermissionState()
+        }
+    }
+
+    private fun refreshStartModeState() {
+        val hasManualStart = prefs.manualStartTime != -1L
+        findPreference<Preference>("clear_manual_start")?.isEnabled = hasManualStart
+        findPreference<SwitchPreferenceCompat>(AppPreferences.KEY_IS_MANUAL_LOCKED)?.apply {
+            isEnabled = hasManualStart
+            isChecked = prefs.isManualLocked
+        }
+        findPreference<Preference>(AppPreferences.KEY_MANUAL_START_TIME)?.let(::updateManualStartSummary)
+        val status = when {
+            hasManualStart && prefs.isManualLocked -> getString(
+                R.string.settings_status_daily, formatTimestamp(prefs.manualStartTime)
+            )
+            hasManualStart -> getString(
+                R.string.settings_status_today, formatTimestamp(prefs.manualStartTime)
+            )
+            repository.getEffectiveStartTime() != -1L -> getString(
+                R.string.settings_status_automatic_detected, formatTimestamp(repository.getEffectiveStartTime())
+            )
+            !UsageDetector.hasUsageStatsPermission(requireContext()) -> getString(R.string.settings_status_automatic_permission)
+            else -> getString(R.string.settings_status_automatic_waiting, prefs.usageThreshold)
+        }
+        findPreference<Preference>("start_status")?.summary = status
+    }
+
+    private fun showAutomaticStartFeedback() {
+        val message = when {
+            repository.getEffectiveStartTime() != -1L -> R.string.settings_automatic_detected_feedback
+            !UsageDetector.hasUsageStatsPermission(requireContext()) -> R.string.settings_automatic_permission_feedback
+            else -> R.string.settings_automatic_waiting_feedback
+        }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+
+    private fun formatTimestamp(timestamp: Long): String =
+        DateFormat.getTimeFormat(requireContext()).format(java.util.Date(timestamp))
 
     private fun clearManualStart(update: Boolean = true) {
         prefs.manualStartTime = -1L
@@ -632,6 +843,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun updateManualStartSummary(pref: Preference) {
+        pref.title = getString(if (prefs.isManualLocked) R.string.settings_edit_daily_start else R.string.label_manual_start)
         if (prefs.manualStartTime == -1L) {
             pref.summary = getString(R.string.manual_start_not_set)
             return
@@ -642,7 +854,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         pref.summary = if (prefs.isManualLocked) {
             getString(R.string.manual_start_summary_daily, summary)
         } else {
-            summary
+            getString(R.string.settings_manual_today_summary, summary)
         }
     }
 

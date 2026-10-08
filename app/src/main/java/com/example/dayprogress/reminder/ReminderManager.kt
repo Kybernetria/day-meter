@@ -125,7 +125,10 @@ class CheckpointActionReceiver : BroadcastReceiver() {
         deliveryToken: Long
     ): Boolean {
         val store = CheckpointStore(context)
-        if (store.getCheckpoints().none { it.id == checkpointId }) return false
+        val checkpoint = store.getCheckpoints().find { it.id == checkpointId } ?: return false
+        if (!checkpoint.enabled) return false
+        if (checkpoint.predecessorId != null && occurrenceDayId != com.example.dayprogress.data.DayIdFormatter.format(System.currentTimeMillis())) return false
+        if (intent.action in setOf(ACTION_DONE, ACTION_SNOOZE) && CheckpointEngine(context).isBlocked(checkpoint, occurrenceDayId)) return false
         val currentState = store.getState(checkpointId, occurrenceDayId) ?: return false
         if (currentState.status != CheckpointStatus.NOTIFIED || currentState.notifiedAtMillis != deliveryToken) {
             return false
@@ -134,6 +137,7 @@ class CheckpointActionReceiver : BroadcastReceiver() {
         val newState = when (intent.action) {
             ACTION_DONE -> currentState.copy(
                 status = CheckpointStatus.DONE,
+                completedAtMillis = System.currentTimeMillis(),
                 snoozeAtMillis = -1L,
                 snoozeAtElapsedRealtime = -1L
             )

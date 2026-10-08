@@ -71,7 +71,10 @@ class CheckpointEngine(private val context: Context) {
                 }
             }
 
-            val status = states[occurrence.key]?.status
+            val savedStatus = states[occurrence.key]?.status
+            val status = if (savedStatus !in setOf(CheckpointStatus.DONE, CheckpointStatus.SKIPPED, CheckpointStatus.MISSED) &&
+                isBlocked(checkpoint, occurrence.occurrenceDayId, nowMillis)
+            ) CheckpointStatus.BLOCKED else savedStatus
             if (status != CheckpointStatus.SKIPPED && status != CheckpointStatus.MISSED) {
                 markers += WidgetCheckpointMarker(
                     percent = occurrence.markerPercent ?: return@forEach,
@@ -96,11 +99,12 @@ class CheckpointEngine(private val context: Context) {
             }
             .mapNotNull { state ->
                 checkpoints.firstOrNull { it.id == state.checkpointId }?.let {
-                    CheckpointOccurrence(it, state.occurrenceDayId, state.snoozeAtMillis)
+                    readyOccurrence(CheckpointOccurrence(it, state.occurrenceDayId, state.snoozeAtMillis), nowMillis)
                 }
             }
 
-        return (persisted + candidateOccurrences(checkpoints, nowMillis, 0..8).asSequence())
+        return (persisted + candidateOccurrences(checkpoints, nowMillis, 0..8).asSequence()
+            .mapNotNull { readyOccurrence(it, nowMillis) })
             .filter { occurrence ->
                 val state = states[occurrence.key]
                 occurrence.dueAtMillis > nowMillis && (
@@ -120,27 +124,29 @@ class CheckpointEngine(private val context: Context) {
             .filter { it.status in setOf(CheckpointStatus.SCHEDULED, CheckpointStatus.SNOOZED) }
             .forEach { state ->
                 checkpoints.firstOrNull { it.id == state.checkpointId }?.let { checkpoint ->
-                    val scheduleAt = state.snoozeAtMillis.takeIf { it > nowMillis } ?: (nowMillis + 1_000L)
-                    candidates += ScheduledCandidate(
-                        scheduleAt,
-                        CheckpointOccurrence(checkpoint, state.occurrenceDayId, state.snoozeAtMillis)
-                    )
+                    val occurrence = readyOccurrence(
+                        CheckpointOccurrence(checkpoint, state.occurrenceDayId, state.snoozeAtMillis), nowMillis
+                    ) ?: return@forEach
+                    val scheduleAt = occurrence.dueAtMillis.takeIf { it > nowMillis } ?: (nowMillis + 1_000L)
+                    candidates += ScheduledCandidate(scheduleAt, occurrence)
                 }
             }
 
         candidateOccurrences(checkpoints, nowMillis, 0..8)
+            .mapNotNull { readyOccurrence(it, nowMillis) }
             .filter { states[it.key] == null }
             .forEach { occurrence ->
                 val scheduleAt = when {
                     occurrence.dueAtMillis > nowMillis -> occurrence.dueAtMillis
-                    isWithinLateGrace(nowMillis, occurrence.dueAtMillis) -> nowMillis + 1_000L
+                    isEligibleLate(occurrence, nowMillis) -> nowMillis + 1_000L
                     else -> return@forEach
                 }
                 candidates += ScheduledCandidate(scheduleAt, occurrence)
             }
 
         val nextDue = candidates.minOfOrNull(ScheduledCandidate::scheduleAtMillis)
-        val detectionPoll = nextDetectionPoll(checkpoints, nowMillis)
+        val chainExpiry = if (checkpoints.any { it.predecessorId != null }) nextMidnight(nowMillis) else null
+        val detectionPoll = listOfNotNull(nextDetectionPoll(checkpoints, nowMillis), chainExpiry).minOrNull()
         return when {
             nextDue == null -> detectionPoll?.let { CheckpointSchedule(it, isDetectionPoll = true) }
             detectionPoll != null && detectionPoll < nextDue -> CheckpointSchedule(detectionPoll, isDetectionPoll = true)
@@ -161,21 +167,30 @@ class CheckpointEngine(private val context: Context) {
 
         states.values
             .filter {
-                it.status in setOf(CheckpointStatus.SCHEDULED, CheckpointStatus.SNOOZED) &&
-                    it.snoozeAtMillis <= nowMillis + DUE_EARLY_TOLERANCE_MILLIS
+                it.status in setOf(CheckpointStatus.SCHEDULED, CheckpointStatus.SNOOZED)
             }
             .forEach { state ->
                 checkpoints.firstOrNull { it.id == state.checkpointId }?.let { checkpoint ->
-                    val occurrence = CheckpointOccurrence(checkpoint, state.occurrenceDayId, state.snoozeAtMillis)
-                    if (isWithinLateGrace(nowMillis, state.snoozeAtMillis)) due += occurrence else missed += occurrence
+                    val original = CheckpointOccurrence(checkpoint, state.occurrenceDayId, state.snoozeAtMillis)
+                    if (checkpoint.predecessorId != null && state.occurrenceDayId < formatDayId(nowMillis)) {
+                        missed += original
+                        return@forEach
+                    }
+                    val occurrence = readyOccurrence(original, nowMillis) ?: return@forEach
+                    if (!isDue(occurrence, nowMillis)) return@forEach
+                    if (isEligibleLate(occurrence, nowMillis)) due += occurrence else missed += occurrence
                 }
             }
 
-        candidateOccurrences(checkpoints, nowMillis, -1..0).forEach { occurrence ->
-            if (states[occurrence.key] != null || occurrence.dueAtMillis > nowMillis + DUE_EARLY_TOLERANCE_MILLIS) {
+        candidateOccurrences(checkpoints, nowMillis, -1..0).forEach { original ->
+            if (states[original.key] != null) return@forEach
+            if (original.checkpoint.predecessorId != null && original.occurrenceDayId < formatDayId(nowMillis)) {
+                missed += original
                 return@forEach
             }
-            if (isWithinLateGrace(nowMillis, occurrence.dueAtMillis)) {
+            val occurrence = readyOccurrence(original, nowMillis) ?: return@forEach
+            if (!isDue(occurrence, nowMillis)) return@forEach
+            if (isEligibleLate(occurrence, nowMillis)) {
                 due += occurrence
             } else {
                 missed += occurrence
@@ -187,6 +202,58 @@ class CheckpointEngine(private val context: Context) {
             missed = missed.distinctBy(CheckpointOccurrence::key)
         )
     }
+
+    /** The trigger's calendar date, including percentage triggers in overnight day windows. */
+    fun getCurrentOccurrence(checkpoint: Checkpoint, nowMillis: Long = System.currentTimeMillis()): CheckpointOccurrence? =
+        candidateOccurrences(listOf(checkpoint), nowMillis, 0..0)
+            .firstOrNull { it.occurrenceDayId == formatDayId(nowMillis) }
+            ?.let { occurrence ->
+                val readyAt = chainReadyAt(checkpoint, occurrence.occurrenceDayId, nowMillis)
+                occurrence.copy(dueAtMillis = maxOf(occurrence.dueAtMillis, readyAt ?: occurrence.dueAtMillis))
+            }
+
+    /** Only Done on the same calendar date unlocks a chain; skipping never does. */
+    fun isBlocked(checkpoint: Checkpoint, occurrenceDayId: String, nowMillis: Long = System.currentTimeMillis()): Boolean =
+        checkpoint.predecessorId != null &&
+            (chainReadyAt(checkpoint, occurrenceDayId, nowMillis)?.let { it > nowMillis } ?: true)
+
+    private fun chainReadyAt(checkpoint: Checkpoint, occurrenceDayId: String, nowMillis: Long): Long? {
+        val predecessorId = checkpoint.predecessorId ?: return 0L
+        if (occurrenceDayId != formatDayId(nowMillis)) return null
+        val predecessor = store.getCheckpoints().firstOrNull { it.id == predecessorId } ?: return null
+        if (!predecessor.enabled) return null
+        val completion = store.getState(predecessorId, occurrenceDayId) ?: return null
+        if (completion.status != CheckpointStatus.DONE) return null
+        // Older versions stored Done without a completion timestamp. Immediate chains remain usable.
+        if (completion.completedAtMillis < 0L) return if (checkpoint.delayMinutes == 0) 0L else null
+        if (formatDayId(completion.completedAtMillis) != occurrenceDayId || completion.completedAtMillis > nowMillis) return null
+        return completion.completedAtMillis + checkpoint.delayMinutes * 60_000L
+    }
+
+    private fun readyOccurrence(occurrence: CheckpointOccurrence, nowMillis: Long): CheckpointOccurrence? {
+        if (occurrence.checkpoint.predecessorId == null) return occurrence
+        val readyAt = chainReadyAt(occurrence.checkpoint, occurrence.occurrenceDayId, nowMillis) ?: return null
+        val dueAt = maxOf(occurrence.dueAtMillis, readyAt)
+        if (formatDayId(dueAt) != occurrence.occurrenceDayId) return null
+        return occurrence.copy(dueAtMillis = dueAt)
+    }
+
+    private fun isDue(occurrence: CheckpointOccurrence, nowMillis: Long): Boolean =
+        occurrence.dueAtMillis <= nowMillis +
+            if (occurrence.checkpoint.predecessorId != null) 0L else DUE_EARLY_TOLERANCE_MILLIS
+
+    private fun isEligibleLate(occurrence: CheckpointOccurrence, nowMillis: Long): Boolean =
+        if (occurrence.checkpoint.predecessorId != null) occurrence.occurrenceDayId == formatDayId(nowMillis)
+        else isWithinLateGrace(nowMillis, occurrence.dueAtMillis)
+
+    private fun nextMidnight(nowMillis: Long): Long = Calendar.getInstance().apply {
+        timeInMillis = nowMillis
+        add(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 
     private fun candidateOccurrences(
         checkpoints: List<Checkpoint>,

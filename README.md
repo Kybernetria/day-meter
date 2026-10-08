@@ -8,6 +8,8 @@ A small Android widget app that tracks how much of your configured day has passe
 - Shows progress, time remaining, and clear waiting/completed states
 - Supports bar, text, and combined widgets with customizable colors, borders, fonts, and gradients
 - Adds arbitrary daily checkpoints at a clock time or percentage of the day
+- Links checkpoints into habit chains that wait for the previous step to be Done, with an optional delay
+- Lets you complete or skip today’s checkpoint in its editor, even without notifications
 - Shows checkpoint markers on the progress bar and sends gentle or silent reminders
 - Supports Done, Snooze 10 min, and Skip today notification actions
 - Uses battery-friendly passive widget refreshes rather than frequent exact wake-up alarms
@@ -17,6 +19,13 @@ A small Android widget app that tracks how much of your configured day has passe
 - Android 13 and newer ask for notification permission when an enabled checkpoint is saved
 - Checkpoint reminders are best-effort and can be delayed by Android battery restrictions
 - Tap the widget once to open settings
+
+## Habit chains
+In a checkpoint editor, choose **Wait for checkpoint** and optionally a delay after completion. The clock time or day percentage is the earliest reminder time; a linked checkpoint waits until its predecessor is Done too. Skip and Snooze do not unlock later steps. Dependent steps must repeat on days covered by their predecessor.
+
+Chains reset at midnight and match steps on the same scheduled calendar date, even when your day window extends overnight. A delay extending past midnight expires for that date. Remove dependent links before deleting a predecessor. Disabled predecessors keep later steps waiting.
+
+Open a saved checkpoint to mark it Done or Skip today. Completing it in the app also works when you have dismissed its reminder or disabled notification permission.
 
 ## Build
 ```bash

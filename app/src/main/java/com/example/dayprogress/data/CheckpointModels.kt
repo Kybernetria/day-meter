@@ -9,7 +9,7 @@ import java.util.UUID
 
 enum class CheckpointTriggerType { CLOCK, PERCENT }
 enum class CheckpointNotificationMode { GENTLE, SILENT }
-enum class CheckpointStatus { SCHEDULED, NOTIFIED, SNOOZED, DONE, SKIPPED, MISSED }
+enum class CheckpointStatus { SCHEDULED, NOTIFIED, SNOOZED, DONE, SKIPPED, MISSED, BLOCKED }
 
 data class Checkpoint(
     val id: String = UUID.randomUUID().toString(),
@@ -21,7 +21,10 @@ data class Checkpoint(
     val daysMask: Int = ALL_DAYS_MASK,
     val notificationMode: CheckpointNotificationMode = CheckpointNotificationMode.GENTLE,
     val showOnWidget: Boolean = true,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    /** Wait for this checkpoint to be done on the same calendar date. */
+    val predecessorId: String? = null,
+    val delayMinutes: Int = 0
 ) {
     fun appliesOn(calendarDayOfWeek: Int): Boolean {
         return calendarDayOfWeek in 1..7 && daysMask and (1 shl (calendarDayOfWeek - 1)) != 0
@@ -37,7 +40,8 @@ data class Checkpoint(
         return runCatching { UUID.fromString(id) }.isSuccess &&
             label.codePointCount(0, label.length) <= MAX_LABEL_CODE_POINTS &&
             daysMask in 1..ALL_DAYS_MASK &&
-            valueIsValid
+            valueIsValid && delayMinutes in 0..1440 &&
+            (predecessorId == null || (predecessorId != id && runCatching { UUID.fromString(predecessorId) }.isSuccess))
     }
 
     companion object {
@@ -52,7 +56,8 @@ data class CheckpointState(
     val status: CheckpointStatus,
     val notifiedAtMillis: Long = -1L,
     val snoozeAtMillis: Long = -1L,
-    val snoozeAtElapsedRealtime: Long = -1L
+    val snoozeAtElapsedRealtime: Long = -1L,
+    val completedAtMillis: Long = -1L
 ) {
     val occurrenceKey: String get() = key(checkpointId, occurrenceDayId)
 
@@ -74,10 +79,12 @@ class CheckpointStore(context: Context) {
     private val prefs = context.getSharedPreferences(AppPreferences.FILE_NAME, Context.MODE_PRIVATE)
 
     fun getCheckpoints(): List<Checkpoint> = synchronized(LOCK) {
+        val chains = getChainMetadata()
         safeStringSet(AppPreferences.KEY_CHECKPOINTS)
             .asSequence()
             .take(MAX_CHECKPOINTS + 1)
             .mapNotNull(::decodeCheckpoint)
+            .map { checkpoint -> chains[checkpoint.id]?.let { checkpoint.copy(predecessorId = it.first, delayMinutes = it.second) } ?: checkpoint }
             .filter(Checkpoint::isValid)
             .distinctBy(Checkpoint::id)
             .take(MAX_CHECKPOINTS)
@@ -95,20 +102,32 @@ class CheckpointStore(context: Context) {
             if (checkpoints.size >= MAX_CHECKPOINTS) return@synchronized false
             checkpoints += checkpoint
         }
+        if (!isValidGraph(checkpoints)) return@synchronized false
         writeCheckpoints(checkpoints)
         true
     }
 
-    fun deleteCheckpoint(checkpointId: String) = synchronized(LOCK) {
-        writeCheckpoints(getCheckpoints().filterNot { it.id == checkpointId })
+    fun canSaveCheckpoint(checkpoint: Checkpoint): Boolean = synchronized(LOCK) {
+        if (!checkpoint.isValid()) return@synchronized false
+        val existing = getCheckpoints()
+        if (existing.none { it.id == checkpoint.id } && existing.size >= MAX_CHECKPOINTS) return@synchronized false
+        isValidGraph(existing.filterNot { it.id == checkpoint.id } + checkpoint)
+    }
+
+    fun deleteCheckpoint(checkpointId: String): Boolean = synchronized(LOCK) {
+        val checkpoints = getCheckpoints()
+        if (checkpoints.any { it.predecessorId == checkpointId }) return@synchronized false
+        writeCheckpoints(checkpoints.filterNot { it.id == checkpointId })
         val states = getStates().filterValues { it.checkpointId != checkpointId }
         writeStates(states.values)
+        true
     }
 
     fun hasEnabledCheckpoints(): Boolean = getCheckpoints().any { it.enabled }
 
     fun getStates(): Map<String, CheckpointState> = synchronized(LOCK) {
         val elapsedSnoozes = getElapsedSnoozes()
+        val completions = getLongMetadata(KEY_COMPLETIONS)
         safeStringSet(AppPreferences.KEY_CHECKPOINT_STATES)
             .asSequence()
             .take(MAX_STATE_RECORDS + 1)
@@ -116,7 +135,8 @@ class CheckpointStore(context: Context) {
             .map { state ->
                 state.copy(
                     snoozeAtElapsedRealtime = elapsedSnoozes[state.occurrenceKey]
-                        ?: state.snoozeAtElapsedRealtime
+                        ?: state.snoozeAtElapsedRealtime,
+                    completedAtMillis = completions[state.occurrenceKey] ?: -1L
                 )
             }
             .distinctBy(CheckpointState::occurrenceKey)
@@ -176,6 +196,8 @@ class CheckpointStore(context: Context) {
             remove(AppPreferences.KEY_CHECKPOINTS)
             remove(AppPreferences.KEY_CHECKPOINT_STATES)
             remove(AppPreferences.KEY_CHECKPOINT_SNOOZE_ELAPSED)
+            remove(KEY_CHAINS)
+            remove(KEY_COMPLETIONS)
         }
     }
 
@@ -189,12 +211,18 @@ class CheckpointStore(context: Context) {
     }
 
     private fun writeCheckpoints(checkpoints: Collection<Checkpoint>) {
-        prefs.edit { putStringSet(AppPreferences.KEY_CHECKPOINTS, checkpoints.map(::encodeCheckpoint).toSet()) }
+        prefs.edit {
+            putStringSet(AppPreferences.KEY_CHECKPOINTS, checkpoints.map(::encodeCheckpoint).toSet())
+            putStringSet(KEY_CHAINS, checkpoints.filter { it.predecessorId != null }
+                .map { "${it.id}$SEPARATOR${it.predecessorId}$SEPARATOR${it.delayMinutes}" }.toSet())
+        }
     }
 
     private fun writeStates(states: Collection<CheckpointState>) {
         prefs.edit {
             putStringSet(AppPreferences.KEY_CHECKPOINT_STATES, states.map(::encodeState).toSet())
+            putStringSet(KEY_COMPLETIONS, states.filter { it.status == CheckpointStatus.DONE && it.completedAtMillis >= 0L }
+                .map { "${it.occurrenceKey}$SEPARATOR${it.completedAtMillis}" }.toSet())
             putStringSet(
                 AppPreferences.KEY_CHECKPOINT_SNOOZE_ELAPSED,
                 states.filter { it.status == CheckpointStatus.SNOOZED && it.snoozeAtElapsedRealtime >= 0L }
@@ -203,6 +231,37 @@ class CheckpointStore(context: Context) {
             )
         }
     }
+
+    private fun isValidGraph(checkpoints: List<Checkpoint>): Boolean {
+        val byId = checkpoints.associateBy(Checkpoint::id)
+        return checkpoints.all { checkpoint ->
+            val visited = mutableSetOf(checkpoint.id)
+            var current = checkpoint
+            while (current.predecessorId != null) {
+                val predecessor = byId[current.predecessorId] ?: return@all false
+                if (current.daysMask and predecessor.daysMask != current.daysMask || !visited.add(predecessor.id)) {
+                    return@all false
+                }
+                current = predecessor
+            }
+            true
+        }
+    }
+
+    private fun getChainMetadata(): Map<String, Pair<String, Int>> = safeStringSet(KEY_CHAINS).mapNotNull { encoded ->
+        val parts = encoded.split(SEPARATOR)
+        // If metadata names an existing checkpoint but is malformed, retain an invalid link so
+        // getCheckpoints excludes it instead of silently turning a gated task into an independent one.
+        val id = parts.firstOrNull()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        id to if (parts.size == 3) (parts[1] to (parts[2].toIntOrNull() ?: -1)) else ("" to -1)
+    }.toMap()
+
+    private fun getLongMetadata(key: String): Map<String, Long> = safeStringSet(key).mapNotNull { encoded ->
+        val separator = encoded.lastIndexOf(SEPARATOR)
+        if (separator <= 0) null else encoded.substring(separator + 1).toLongOrNull()?.let {
+            encoded.substring(0, separator) to it
+        }
+    }.toMap()
 
     private fun getElapsedSnoozes(): Map<String, Long> {
         return safeStringSet(AppPreferences.KEY_CHECKPOINT_SNOOZE_ELAPSED).mapNotNull { encoded ->
@@ -271,6 +330,8 @@ class CheckpointStore(context: Context) {
     }.getOrNull()
 
     private companion object {
+        const val KEY_CHAINS = "checkpoint_chains_v1"
+        const val KEY_COMPLETIONS = "checkpoint_completions_v1"
         const val FORMAT_VERSION = "1"
         const val SEPARATOR = "|"
         const val MAX_CHECKPOINTS = 50
